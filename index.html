@@ -418,13 +418,13 @@
     </div>
 
     <div id="exportResultModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-6">
-        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-3xl w-full flex flex-col max-h-[90vh] overflow-hidden">
             <div class="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
                 <div>
                     <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
-                        <i class="fa-solid fa-circle-check text-emerald-500"></i> レポート画像が完成しました
+                        <i class="fa-solid fa-file-image text-indigo-600"></i> レポート画像のプレビュー
                     </h3>
-                    <p class="text-xs text-slate-500">スマホ・タブレットの方は下記の手順で保存してください</p>
+                    <p class="text-xs text-slate-500">生成された画像を確認し、保存方法を選択してください</p>
                 </div>
                 <button onclick="closeExportResultModal()" class="text-slate-400 hover:text-slate-600 p-1">
                     <i class="fa-solid fa-xmark text-xl"></i>
@@ -432,33 +432,22 @@
             </div>
 
             <div class="p-4 flex-1 overflow-y-auto bg-slate-100 flex flex-col items-center justify-center gap-3">
-                <!-- Mobile Steps Guide Banner -->
-                <div class="w-full bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 flex flex-col gap-1.5 shadow-sm">
-                    <div class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
-                        <i class="fa-solid fa-mobile-screen-button text-indigo-600"></i> スマホ・タブレットでの保存手順
-                    </div>
-                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
-                        <div class="bg-white p-2 rounded-lg border border-indigo-100 flex items-center gap-2">
-                            <span class="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">1</span>
-                            <span>下の<strong>「別タブで開く」</strong>ボタンをタップ</span>
-                        </div>
-                        <div class="bg-white p-2 rounded-lg border border-indigo-100 flex items-center gap-2">
-                            <span class="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">2</span>
-                            <span>開いた画面で画像を<strong>長押しして「写真に保存」</strong></span>
-                        </div>
-                    </div>
+                <!-- Mobile Guide Banner -->
+                <div class="w-full bg-indigo-50 border border-indigo-200 rounded-xl p-2.5 text-xs text-indigo-900 flex items-center gap-2 shadow-sm">
+                    <i class="fa-solid fa-mobile-screen-button text-indigo-600 text-base shrink-0"></i>
+                    <span>スマホ・タブレットの方は <strong>「別タブで開く」</strong> をタップし、表示された画像を長押しで写真に保存できます。</span>
                 </div>
 
                 <!-- Generated Output Image preview -->
-                <div class="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm max-h-[42vh] flex items-center justify-center p-1 w-full">
-                    <img id="exportResultImg" src="" alt="Export Result" class="max-h-[40vh] w-auto max-w-full object-contain rounded">
+                <div class="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm max-h-[50vh] flex items-center justify-center p-2 w-full">
+                    <img id="exportResultImg" src="" alt="Export Result Preview" class="max-h-[48vh] w-auto max-w-full object-contain rounded shadow-sm">
                 </div>
             </div>
 
             <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-2">
                 <div class="flex items-center gap-2 w-full sm:w-auto">
-                    <button onclick="openResultInNewTab()" class="flex-1 sm:flex-initial px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold rounded-lg transition shadow-md flex items-center justify-center gap-2">
-                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 別タブで開く (保存画面へ)
+                    <button onclick="openResultInNewTab()" class="flex-1 sm:flex-initial px-4 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold rounded-lg transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 別タブで開く (手動保存)
                     </button>
                     <button id="shareBtn" onclick="shareResultImage()" class="hidden px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-lg transition shadow-md flex items-center justify-center gap-1.5">
                         <i class="fa-solid fa-share-nodes"></i> 共有
@@ -468,7 +457,7 @@
                     <button onclick="closeExportResultModal()" class="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition">
                         閉じる
                     </button>
-                    <a id="exportResultDownloadBtn" href="#" download="レポート.png" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-medium rounded-lg transition flex items-center gap-1.5" title="PC向けの直接ダウンロード">
+                    <a id="exportResultDownloadBtn" href="#" download="レポート.png" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-white text-xs sm:text-sm font-medium rounded-lg transition flex items-center justify-center gap-1.5" title="PC向け直接保存">
                         <i class="fa-solid fa-download"></i> PC保存
                     </a>
                 </div>
@@ -1455,20 +1444,8 @@
                 showLoading(false);
                 lastExportBlob = blob;
 
-                // Show export result preview modal with optimized mobile button layout
+                // Always open preview modal first for user verification
                 openExportResultModal(dataUrl, fileName);
-
-                // Attempt standard programmatic download trigger (desktop support)
-                try {
-                    const link = document.createElement('a');
-                    link.download = fileName;
-                    link.href = dataUrl;
-                    document.body.appendChild(link);
-                    link.click();
-                    document.body.removeChild(link);
-                } catch (e) {
-                    console.error("Direct download link trigger failed:", e);
-                }
             }, 'image/png');
         }
 
@@ -1493,7 +1470,7 @@
             }
 
             const modal = document.getElementById('exportResultModal');
-            if (modal) modal.classList.add('hidden');
+            if (modal) modal.classList.remove('hidden');
         }
 
         async function shareResultImage() {
@@ -1525,90 +1502,85 @@
                 return;
             }
 
-            win.document.write(`
-                <!DOCTYPE html>
-                <html lang="ja">
-                <head>
-                    <meta charset="UTF-8">
-                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-                    <title>細胞カウント解析結果 - 画像保存</title>
-                    <style>
-                        * { box-sizing: border-box; }
-                        body {
-                            margin: 0;
-                            padding: 16px;
-                            background-color: #0f172a;
-                            color: #ffffff;
-                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
-                            display: flex;
-                            flex-direction: column;
-                            align-items: center;
-                            min-height: 100vh;
-                        }
-                        .notice {
-                            background: #1e293b;
-                            border: 1px solid #334155;
-                            border-left: 4px solid #6366f1;
-                            border-radius: 12px;
-                            padding: 14px 18px;
-                            margin-bottom: 20px;
-                            max-width: 640px;
-                            width: 100%;
-                            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
-                        }
-                        .notice h2 {
-                            font-size: 16px;
-                            margin: 0 0 6px 0;
-                            color: #818cf8;
-                            display: flex;
-                            align-items: center;
-                            gap: 8px;
-                        }
-                        .notice p {
-                            font-size: 13.5px;
-                            margin: 0;
-                            color: #e2e8f0;
-                            line-height: 1.6;
-                        }
-                        .img-container {
-                            flex: 1;
-                            display: flex;
-                            justify-content: center;
-                            align-items: flex-start;
-                            width: 100%;
-                            max-width: 960px;
-                        }
-                        .result-img {
-                            max-width: 100%;
-                            height: auto;
-                            border-radius: 12px;
-                            box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.6);
-                            display: block;
-                            background-color: #ffffff;
-                            -webkit-touch-callout: default !important;
-                            user-select: auto !important;
-                            -webkit-user-select: auto !important;
-                        }
-                    </style>
-                </head>
-                <body>
-                    <div class="notice">
-                        <h2>📱 画像の保存方法</h2>
-                        <p>下の画像を<strong>長押し</strong>（または右クリック）して、<strong>「写真に保存」</strong>・<strong>「画像を保存」</strong>などを選択して保存してください。</p>
-                    </div>
-                    <div class="img-container">
-                        <img id="resultImage" class="result-img" alt="細胞カウント解析結果">
-                    </div>
-                </body>
-                </html>
-            `);
-            win.document.close();
+            const fileName = getFormattedDateFileName();
+            const htmlContent = `<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>${fileName}</title>
+    <style>
+        * { box-sizing: border-box; }
+        body {
+            margin: 0;
+            padding: 16px;
+            background-color: #0f172a;
+            color: #ffffff;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            min-height: 100vh;
+        }
+        .notice {
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-left: 4px solid #6366f1;
+            border-radius: 12px;
+            padding: 12px 16px;
+            margin-bottom: 16px;
+            max-width: 680px;
+            width: 100%;
+            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.4);
+        }
+        .notice h2 {
+            font-size: 15px;
+            margin: 0 0 4px 0;
+            color: #818cf8;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+        .notice p {
+            font-size: 13px;
+            margin: 0;
+            color: #e2e8f0;
+            line-height: 1.5;
+        }
+        .img-container {
+            width: 100%;
+            max-width: 1000px;
+            display: flex;
+            justify-content: center;
+            align-items: flex-start;
+        }
+        .result-img {
+            max-width: 100%;
+            height: auto;
+            border-radius: 12px;
+            box-shadow: 0 15px 30px rgba(0, 0, 0, 0.6);
+            display: block;
+            background-color: #ffffff;
+            -webkit-touch-callout: default !important;
+            user-select: auto !important;
+            -webkit-user-select: auto !important;
+        }
+    </style>
+</head>
+<body>
+    <div class="notice">
+        <h2>📱 画像の保存方法</h2>
+        <p>画像を<strong>長押し</strong>（または右クリック）して<strong>「写真に保存」</strong>や<strong>「画像を保存」</strong>を選択してください。</p>
+    </div>
+    <div class="img-container">
+        <img src="${lastExportDataUrl}" class="result-img" alt="細胞カウント解析結果">
+    </div>
+</body>
+</html>`;
 
-            // DOM要素に対して直接Data URLを割り当てることで、文字列パースエラーやオリジン遮断を回避
-            const imgEl = win.document.getElementById('resultImage');
-            if (imgEl) {
-                imgEl.src = lastExportDataUrl;
-            }
+            win.document.open();
+            win.document.write(htmlContent);
+            win.document.close();
         }
 
         function showLoading(show, text = "処理中...") {
