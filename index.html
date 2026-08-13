@@ -3,449 +3,1623 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>細胞カウントアプリ</title>
+    <title>細胞カウントアプリ - 体細胞分裂の観察補助ツール</title>
+    
+    <!-- Tailwind CSS -->
     <script src="https://cdn.tailwindcss.com"></script>
-    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
-    <!-- Chart.js Datalabels Plugin for displaying values on the chart -->
+    <!-- FontAwesome Icons -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css">
+    <!-- Cropper.js CSS & JS -->
+    <link rel="stylesheet" href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.13/cropper.min.js"></script>
+    <!-- Chart.js & Datalabels Plugin -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.0/dist/chart.umd.min.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
-    <!-- Cropper.js for image cropping -->
-    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
-    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <!-- HEIC to JPEG/PNG converter -->
+    <script src="https://cdn.jsdelivr.net/npm/heic2any@0.0.4/dist/heic2any.min.js"></script>
+
     <style>
-        body {
-            font-family: 'Inter', sans-serif;
+        ::-webkit-scrollbar {
+            width: 6px;
+            height: 6px;
         }
-        canvas#imageCanvas {
-            cursor: crosshair;
+        ::-webkit-scrollbar-track {
+            background: #f1f5f9;
+        }
+        ::-webkit-scrollbar-thumb {
+            background: #cbd5e1;
+            border-radius: 4px;
+        }
+        ::-webkit-scrollbar-thumb:hover {
+            background: #94a3b8;
+        }
+        .canvas-container {
+            user-select: none;
+            -webkit-user-select: none;
+            touch-action: none;
         }
         .stage-btn.active {
-            transform: scale(1.05);
-            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
-        }
-        /* Styles for Cropper.js modal */
-        #cropModal {
-            display: none; /* Hidden by default */
-            position: fixed;
-            z-index: 1000;
-            left: 0;
-            top: 0;
-            width: 100%;
-            height: 100%;
-            overflow: auto;
-            background-color: rgba(0,0,0,0.7);
-            justify-content: center;
-            align-items: center;
-        }
-        #cropModalContent {
-            background-color: #fefefe;
-            padding: 20px;
-            border-radius: 10px;
-            max-width: 90vw;
-            max-height: 90vh;
-            display: flex;
-            flex-direction: column;
-        }
-        #imageToCropContainer {
-            max-height: 70vh;
-        }
-        #imageToCrop {
-            max-width: 100%;
-            max-height: 100%;
+            ring-width: 2px;
+            transform: scale(1.02);
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
         }
     </style>
 </head>
-<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
+<body class="bg-slate-100 text-slate-800 font-sans antialiased min-h-screen flex flex-col">
 
-    <div class="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6">
-        <header class="text-center mb-6">
-            <h1 class="text-3xl font-bold text-gray-700">🔬 細胞カウントアプリ</h1>
-            <p class="text-gray-500 mt-2">分裂期の段階を選んで、細胞の核をクリックしましょう。</p>
-        </header>
+    <header class="bg-slate-900 text-white shadow-md sticky top-0 z-30">
+        <div class="max-w-7xl mx-auto px-4 py-3 flex flex-wrap justify-between items-center gap-3">
+            <div class="flex items-center gap-3">
+                <div class="bg-indigo-600 p-2 rounded-lg text-white text-xl flex items-center justify-center w-10 h-10">
+                    <i class="fa-solid font-bold fa-microscope"></i>
+                </div>
+                <div>
+                    <h1 class="font-bold text-lg leading-tight tracking-wide">細胞カウントアプリ</h1>
+                    <p class="text-xs text-slate-400">体細胞分裂の観察・実験データ解析ツール</p>
+                </div>
+            </div>
 
-        <!-- Controls -->
-        <div class="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
-            <div class="flex items-center flex-wrap justify-center gap-3">
-                <label for="imageLoader" class="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">画像を選択</label>
-                <input type="file" id="imageLoader" name="imageLoader" class="hidden" accept="image/*"/>
-                <button id="undoButton" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">一手戻す</button>
-                <button id="downloadButton" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">画像をダウンロード</button>
-                <button id="resetButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">リセット</button>
-            </div>
-             <div class="text-center md:text-right">
-                <h2 class="text-xl font-semibold">合計細胞数: <span id="totalCellCount" class="text-blue-600">0</span></h2>
-            </div>
-        </div>
-        
-        <!-- Stage Selection -->
-        <div class="mb-4 p-4 bg-gray-50 rounded-lg">
-            <h3 class="text-lg font-semibold text-center mb-3">分裂期の段階を選択:</h3>
-            <div id="stageSelector" class="flex flex-wrap justify-center gap-3">
-                <!-- Buttons are styled dynamically in JS -->
-                <button class="stage-btn active" data-stage="interphase">間期 (○)</button>
-                <button class="stage-btn" data-stage="prophase">前期 (□)</button>
-                <button class="stage-btn" data-stage="metaphase">中期 (△)</button>
-                <button class="stage-btn" data-stage="anaphase">後期 (◇)</button>
-                <button class="stage-btn" data-stage="telophase">終期 (☆)</button>
+            <!-- Action buttons -->
+            <div class="flex items-center gap-2 flex-wrap">
+                <input type="file" id="imageInput" accept="image/*,.heic,.heif" class="hidden">
+                <button onclick="document.getElementById('imageInput').click()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs md:text-sm px-3.5 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-upload"></i> 画像を読み込む
+                </button>
+                <button onclick="loadSampleImage()" class="bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs md:text-sm px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm" title="根端分裂組織のサンプル画像を生成して読み込みます">
+                    <i class="fa-solid fa-flask text-emerald-400"></i> サンプル画像
+                </button>
+                <button onclick="openExportModal()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-medium text-xs md:text-sm px-3 py-2 rounded-lg transition flex items-center gap-1.5 shadow-sm">
+                    <i class="fa-solid fa-download"></i> レポート画像出力
+                </button>
             </div>
         </div>
+    </header>
 
-        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
-            <!-- Canvas Container -->
-            <div class="lg:col-span-2 bg-gray-200 rounded-lg overflow-hidden shadow-inner flex justify-center items-center">
-                 <canvas id="imageCanvas" class="w-full h-auto"></canvas>
-            </div>
+    <main class="flex-1 max-w-7xl w-full mx-auto p-2 sm:p-4 grid grid-cols-1 lg:grid-cols-12 gap-4">
 
-            <!-- Data Display Column -->
-            <div class="flex flex-col gap-6">
-                <!-- Counts Display -->
-                <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
-                    <h3 class="text-xl font-semibold mb-4 text-center">各段階の細胞数</h3>
-                    <div class="space-y-3">
-                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #BFDBFE;"><span class="font-medium">間期:</span><span id="interphaseCount" class="font-bold text-lg">0</span></div>
-                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #A7F3D0;"><span class="font-medium">前期:</span><span id="prophaseCount" class="font-bold text-lg">0</span></div>
-                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #FDE68A;"><span class="font-medium">中期:</span><span id="metaphaseCount" class="font-bold text-lg">0</span></div>
-                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #FECACA;"><span class="font-medium">後期:</span><span id="anaphaseCount" class="font-bold text-lg">0</span></div>
-                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #DDD6FE;"><span class="font-medium">終期:</span><span id="telophaseCount" class="font-bold text-lg">0</span></div>
-                        <hr class="my-2 border-t-2 border-gray-300">
-                        <div class="flex justify-between items-center p-3 rounded-lg bg-gray-300"><span class="font-bold">合計:</span><span id="summaryTotalCount" class="font-bold text-lg">0</span></div>
+        <!-- Left Column: Toolbar & Canvas Viewport (8 cols) -->
+        <section class="lg:col-span-8 flex flex-col gap-3">
+            
+            <!-- Stage Selection & Tools Control Bar -->
+            <div class="bg-white p-3 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-3">
+                <div class="flex flex-wrap justify-between items-center gap-2 border-b border-slate-100 pb-2">
+                    <span class="text-xs font-bold text-slate-500 uppercase tracking-wider flex items-center gap-1">
+                        <i class="fa-solid fa-layer-group text-slate-400"></i> 1. 分裂段階を選択
+                    </span>
+                    <div class="flex items-center gap-2 text-xs text-slate-500">
+                        <span id="activeModeLabel" class="bg-indigo-50 text-indigo-700 font-semibold px-2 py-0.5 rounded border border-indigo-200">
+                            モード: カウント (間期)
+                        </span>
                     </div>
                 </div>
-                <!-- Pie Chart -->
-                <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
-                    <h3 class="text-xl font-semibold mb-4 text-center">細胞数の割合 (%)</h3>
-                    <canvas id="pieChart"></canvas>
+
+                <!-- Stage Selection Buttons -->
+                <div class="grid grid-cols-5 gap-1.5 sm:gap-2">
+                    <!-- 間期 Interphase -->
+                    <button onclick="setStage('interphase')" id="btn-interphase" class="stage-btn active flex flex-col items-center justify-center p-2 rounded-xl border-2 transition transform scale-105 shadow-md bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-400">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="w-3.5 h-3.5 rounded-full border border-blue-700 bg-blue-500 inline-block"></span>
+                            <span class="font-bold text-xs sm:text-sm">間期</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono">○ 円形</span>
+                    </button>
+
+                    <!-- 前期 Prophase -->
+                    <button onclick="setStage('prophase')" id="btn-prophase" class="stage-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 hover:border-slate-300 transition bg-white text-slate-700 opacity-80 hover:opacity-100 shadow-sm">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="w-3.5 h-3.5 border border-emerald-700 bg-emerald-500 inline-block"></span>
+                            <span class="font-bold text-xs sm:text-sm">前期</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono">□ 正方形</span>
+                    </button>
+
+                    <!-- 中期 Metaphase -->
+                    <button onclick="setStage('metaphase')" id="btn-metaphase" class="stage-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 hover:border-slate-300 transition bg-white text-slate-700 opacity-80 hover:opacity-100 shadow-sm">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="w-0 h-0 border-l-[6px] border-l-transparent border-r-[6px] border-r-transparent border-b-[10px] border-b-amber-500 inline-block"></span>
+                            <span class="font-bold text-xs sm:text-sm">中期</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono">△ 三角</span>
+                    </button>
+
+                    <!-- 後期 Anaphase -->
+                    <button onclick="setStage('anaphase')" id="btn-anaphase" class="stage-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 hover:border-slate-300 transition bg-white text-slate-700 opacity-80 hover:opacity-100 shadow-sm">
+                        <div class="flex items-center gap-1 mb-1">
+                            <span class="w-3 h-3 bg-red-500 transform rotate-45 border border-red-700 inline-block"></span>
+                            <span class="font-bold text-xs sm:text-sm">後期</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono">◇ ひし形</span>
+                    </button>
+
+                    <!-- 終期 Telophase -->
+                    <button onclick="setStage('telophase')" id="btn-telophase" class="stage-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 hover:border-slate-300 transition bg-white text-slate-700 opacity-80 hover:opacity-100 shadow-sm">
+                        <div class="flex items-center gap-1 mb-1">
+                            <i class="fa-solid fa-star text-xs text-purple-600"></i>
+                            <span class="font-bold text-xs sm:text-sm">終期</span>
+                        </div>
+                        <span class="text-[10px] text-slate-500 font-mono">☆ 星型</span>
+                    </button>
+                </div>
+
+                <div class="flex flex-wrap justify-between items-center gap-2 pt-2 border-t border-slate-100 text-xs">
+                    <div class="flex items-center gap-1 bg-slate-100 p-1 rounded-lg">
+                        <button onclick="setToolMode('count')" id="mode-count" class="px-2.5 py-1 rounded-md font-medium transition bg-white shadow-sm text-slate-800">
+                            <i class="fa-solid fa-mouse-pointer text-indigo-500 mr-1"></i>カウント
+                        </button>
+                        <button onclick="setToolMode('delete')" id="mode-delete" class="px-2.5 py-1 rounded-md font-medium transition text-slate-600 hover:text-slate-900">
+                            <i class="fa-solid fa-eraser text-rose-500 mr-1"></i>消去
+                        </button>
+                        <button onclick="setToolMode('pan')" id="mode-pan" class="px-2.5 py-1 rounded-md font-medium transition text-slate-600 hover:text-slate-900">
+                            <i class="fa-solid fa-hand text-amber-500 mr-1"></i>移動
+                        </button>
+                    </div>
+
+                    <!-- Marker Opacity Toggle -->
+                    <label class="flex items-center gap-1.5 cursor-pointer text-xs font-medium text-slate-700 bg-slate-100 hover:bg-slate-200 px-2.5 py-1.5 rounded-md transition select-none">
+                        <input type="checkbox" id="transparentMarkerToggle" onchange="toggleTransparentMarkers(this.checked)" class="rounded text-indigo-600 focus:ring-indigo-500 w-3.5 h-3.5">
+                        <span><i class="fa-solid fa-eye text-slate-500 mr-0.5"></i> 半透明化</span>
+                    </label>
+
+                    <div class="flex items-center gap-1">
+                        <button onclick="zoomCanvas(1.2)" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition" title="拡大">
+                            <i class="fa-solid fa-magnifying-glass-plus"></i>
+                        </button>
+                        <button onclick="zoomCanvas(0.8)" class="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition" title="縮小">
+                            <i class="fa-solid fa-magnifying-glass-minus"></i>
+                        </button>
+                        <button onclick="resetZoom()" class="px-2 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-md transition font-mono" title="表示リセット">
+                            100%
+                        </button>
+                    </div>
+
+                    <div class="flex items-center gap-1">
+                        <button onclick="undoLastCount()" class="px-2.5 py-1 bg-slate-100 hover:bg-slate-200 text-slate-700 font-medium rounded-md transition flex items-center gap-1">
+                            <i class="fa-solid fa-rotate-left"></i> 一手戻す
+                        </button>
+                        <button onclick="confirmResetAll()" class="px-2.5 py-1 bg-rose-50 hover:bg-rose-100 text-rose-600 font-medium rounded-md transition flex items-center gap-1 border border-rose-200">
+                            <i class="fa-solid fa-trash-can"></i> クリア
+                        </button>
+                    </div>
+                </div>
+            </div>
+
+            <div id="viewportContainer" class="bg-slate-800 rounded-xl overflow-hidden shadow-inner border border-slate-700 relative flex-1 min-h-[420px] max-h-[70vh] flex items-center justify-center canvas-container">
+                <canvas id="mainCanvas" class="cursor-crosshair"></canvas>
+
+                <!-- Floating Canvas Info Badge -->
+                <div class="absolute bottom-3 left-3 bg-slate-900/80 backdrop-blur-md text-white text-[11px] px-2.5 py-1.5 rounded-lg border border-slate-700/50 flex items-center gap-3 pointer-events-none">
+                    <span><i class="fa-solid fa-search text-indigo-400"></i> 倍率: <span id="zoomLevelText" class="font-mono">100%</span></span>
+                    <span><i class="fa-solid fa-location-dot text-indigo-400"></i> 個数: <span id="totalCountBadge" class="font-mono font-bold text-emerald-400">0</span></span>
+                </div>
+
+                <!-- Overlay help guide on start / empty canvas -->
+                <div id="emptyCanvasGuide" class="absolute inset-0 flex flex-col items-center justify-center p-6 text-center text-slate-400 z-10 bg-slate-900/40 backdrop-blur-[2px]">
+                    <div class="bg-slate-900/90 border border-slate-700 p-6 rounded-2xl shadow-xl max-w-md flex flex-col items-center">
+                        <i class="fa-solid fa-microscope text-5xl mb-3 text-indigo-400"></i>
+                        <h2 class="font-bold text-lg text-slate-100 mb-1">細胞の画像を準備してください</h2>
+                        <p class="text-xs text-slate-400 mb-5 leading-relaxed">
+                            手元の顕微鏡写真をアップロードするか、用意されたサンプル画像を使用してカウントを開始します。
+                        </p>
+                        <div class="flex flex-col sm:flex-row gap-3 w-full">
+                            <button onclick="document.getElementById('imageInput').click()" class="flex-1 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold py-2.5 px-4 rounded-xl transition shadow-md flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-upload"></i> 画像を読み込む
+                            </button>
+                            <button onclick="loadSampleImage()" class="flex-1 bg-slate-800 hover:bg-slate-700 text-slate-200 border border-slate-600 text-xs sm:text-sm font-medium py-2.5 px-4 rounded-xl transition flex items-center justify-center gap-2">
+                                <i class="fa-solid fa-flask text-emerald-400"></i> サンプル画像
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            </div>
+        </section>
+
+        <section class="lg:col-span-4 flex flex-col gap-4">
+            
+            <!-- Summary Card -->
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col gap-3">
+                <div class="flex justify-between items-center border-b border-slate-100 pb-2">
+                    <h2 class="font-bold text-slate-800 text-sm flex items-center gap-2">
+                        <i class="fa-solid fa-chart-pie text-indigo-600"></i> カウント集計結果
+                    </h2>
+                    <span class="text-xs bg-slate-100 text-slate-600 px-2 py-0.5 rounded font-mono">
+                        合計: <strong id="totalCellCount" class="text-indigo-600 text-sm">0</strong> 個
+                    </span>
+                </div>
+
+                <!-- Breakdown Table -->
+                <div class="divide-y divide-slate-100 text-xs sm:text-sm">
+                    <!-- 間期 -->
+                    <div class="py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 rounded-full bg-blue-500 inline-block border border-blue-700"></span>
+                            <span class="font-medium text-slate-700">間期 (○)</span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span id="count-interphase" class="font-bold text-slate-800">0</span>
+                            <span id="ratio-interphase" class="text-slate-400 text-xs w-12 text-right">0.0%</span>
+                        </div>
+                    </div>
+
+                    <!-- 前期 -->
+                    <div class="py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-3 h-3 bg-emerald-500 inline-block border border-emerald-700"></span>
+                            <span class="font-medium text-slate-700">前期 (□)</span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span id="count-prophase" class="font-bold text-slate-800">0</span>
+                            <span id="ratio-prophase" class="text-slate-400 text-xs w-12 text-right">0.0%</span>
+                        </div>
+                    </div>
+
+                    <!-- 中期 -->
+                    <div class="py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-0 h-0 border-l-[5px] border-l-transparent border-r-[5px] border-r-transparent border-b-[9px] border-b-amber-500 inline-block"></span>
+                            <span class="font-medium text-slate-700">中期 (△)</span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span id="count-metaphase" class="font-bold text-slate-800">0</span>
+                            <span id="ratio-metaphase" class="text-slate-400 text-xs w-12 text-right">0.0%</span>
+                        </div>
+                    </div>
+
+                    <!-- 後期 -->
+                    <div class="py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <span class="w-2.5 h-2.5 bg-red-500 transform rotate-45 inline-block border border-red-700"></span>
+                            <span class="font-medium text-slate-700">後期 (◇)</span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span id="count-anaphase" class="font-bold text-slate-800">0</span>
+                            <span id="ratio-anaphase" class="text-slate-400 text-xs w-12 text-right">0.0%</span>
+                        </div>
+                    </div>
+
+                    <!-- 終期 -->
+                    <div class="py-2 flex items-center justify-between">
+                        <div class="flex items-center gap-2">
+                            <i class="fa-solid fa-star text-xs text-purple-600"></i>
+                            <span class="font-medium text-slate-700">終期 (☆)</span>
+                        </div>
+                        <div class="flex items-center gap-3 font-mono">
+                            <span id="count-telophase" class="font-bold text-slate-800">0</span>
+                            <span id="ratio-telophase" class="text-slate-400 text-xs w-12 text-right">0.0%</span>
+                        </div>
+                    </div>
+                </div>
+            </div>
+
+            <div class="bg-white p-4 rounded-xl shadow-sm border border-slate-200 flex flex-col items-center justify-center">
+                <h3 class="text-xs font-bold text-slate-500 uppercase tracking-wider w-full text-left mb-2">
+                    細胞周期の割合 (構成比)
+                </h3>
+                <div class="w-full max-w-[240px] aspect-square relative flex items-center justify-center">
+                    <canvas id="stagePieChart"></canvas>
+                </div>
+            </div>
+
+            <!-- Quick Guide Card -->
+            <div class="bg-slate-50 p-3.5 rounded-xl border border-slate-200 text-xs text-slate-600 flex flex-col gap-1.5">
+                <div class="font-bold text-slate-700 flex items-center gap-1.5">
+                    <i class="fa-solid fa-circle-info text-indigo-500"></i> 操作ガイド
+                </div>
+                <ul class="list-disc list-inside space-y-1 text-[11px] text-slate-500 pl-0.5">
+                    <li><strong>拡大/縮小:</strong> マウスホイール または ピンチ操作</li>
+                    <li><strong>画像ドラッグ:</strong> 「移動」モードにするか、ドラッグ操作</li>
+                    <li><strong>マーカー削除:</strong> 「消去」モードでマーカーをクリック</li>
+                    <li><strong>バリアフリー:</strong> 形状と数字で色以外でも識別可能</li>
+                </ul>
+            </div>
+        </section>
+
+    </main>
+
+    <div id="cropperModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base">画像の切り抜き（トリミング）</h3>
+                    <p class="text-xs text-slate-500">観察したい視野範囲を指定してください</p>
+                </div>
+                <button onclick="closeCropperModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+            
+            <div class="p-4 flex-1 overflow-hidden bg-slate-900 flex items-center justify-center min-h-[300px]">
+                <img id="cropperImage" src="" alt="Trimming Source" class="max-h-[60vh] max-w-full block">
+            </div>
+
+            <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="closeCropperModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition">
+                    キャンセル
+                </button>
+                <button onclick="applyCrop()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium rounded-lg transition shadow-md font-bold">
+                    トリミングを確定して読み込み
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-lg w-full flex flex-col overflow-hidden">
+            <div class="px-5 py-4 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base">実験レポート用画像を出力</h3>
+                    <p class="text-xs text-slate-500">合成出力する要素とレイアウトを選択してください</p>
+                </div>
+                <button onclick="closeExportModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-5 flex flex-col gap-4 text-xs sm:text-sm overflow-y-auto max-h-[70vh]">
+                <!-- Title option -->
+                <div>
+                    <label class="block font-bold text-slate-700 mb-1">レポートタイトル</label>
+                    <input type="text" id="exportTitleInput" value="体細胞分裂の観察・細胞数集計結果" class="w-full px-3 py-2 border border-slate-300 rounded-lg text-xs focus:ring-2 focus:ring-indigo-500 focus:outline-none">
+                </div>
+
+                <!-- Custom Checkboxes -->
+                <div class="space-y-2 pt-2 border-t border-slate-100">
+                    <span class="font-bold text-slate-700 block mb-1">描画・合成要素</span>
+                    
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="expOptMarkers" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <span class="text-slate-700">細胞上にカウントマーカーを描画する</span>
+                    </label>
+
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="expOptNumbers" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <span class="text-slate-700">マーカーに通し番号を表示する</span>
+                    </label>
+
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="expOptTable" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <span class="text-slate-700">右側に集計データテーブルを合成する</span>
+                    </label>
+
+                    <label class="flex items-center gap-2 cursor-pointer">
+                        <input type="checkbox" id="expOptChart" checked class="rounded text-indigo-600 focus:ring-indigo-500 w-4 h-4">
+                        <span class="text-slate-700">集計表内に円グラフを合成する</span>
+                    </label>
+                </div>
+
+                <!-- Table display selection -->
+                <div class="pt-2 border-t border-slate-100">
+                    <span class="font-bold text-slate-700 block mb-1">表の数値表示方法</span>
+                    <div class="flex gap-4">
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="expTableDetail" value="both" checked class="text-indigo-600 focus:ring-indigo-500">
+                            <span>個数 ＋ 割合(%)</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="expTableDetail" value="count" class="text-indigo-600 focus:ring-indigo-500">
+                            <span>個数のみ</span>
+                        </label>
+                        <label class="flex items-center gap-1.5 cursor-pointer">
+                            <input type="radio" name="expTableDetail" value="percent" class="text-indigo-600 focus:ring-indigo-500">
+                            <span>割合(%)のみ</span>
+                        </label>
+                    </div>
+                </div>
+            </div>
+
+            <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex justify-end gap-2">
+                <button onclick="closeExportModal()" class="px-4 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition">
+                    キャンセル
+                </button>
+                <button onclick="generateAndDownloadExport()" class="px-5 py-2 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-medium rounded-lg transition shadow-md flex items-center gap-1.5 font-bold">
+                    <i class="fa-solid fa-file-export"></i> PNG画像を生成・出力
+                </button>
+            </div>
+        </div>
+    </div>
+
+    <div id="exportResultModal" class="fixed inset-0 bg-slate-900/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-3 sm:p-6">
+        <div class="bg-white rounded-2xl shadow-2xl max-w-2xl w-full flex flex-col max-h-[90vh] overflow-hidden">
+            <div class="px-5 py-3.5 border-b border-slate-200 flex justify-between items-center bg-slate-50">
+                <div>
+                    <h3 class="font-bold text-slate-800 text-base flex items-center gap-2">
+                        <i class="fa-solid fa-circle-check text-emerald-500"></i> レポート画像が完成しました
+                    </h3>
+                    <p class="text-xs text-slate-500">スマホ・タブレットの方は下記の手順で保存してください</p>
+                </div>
+                <button onclick="closeExportResultModal()" class="text-slate-400 hover:text-slate-600 p-1">
+                    <i class="fa-solid fa-xmark text-xl"></i>
+                </button>
+            </div>
+
+            <div class="p-4 flex-1 overflow-y-auto bg-slate-100 flex flex-col items-center justify-center gap-3">
+                <!-- Mobile Steps Guide Banner -->
+                <div class="w-full bg-indigo-50 border border-indigo-200 rounded-xl p-3 text-xs text-indigo-900 flex flex-col gap-1.5 shadow-sm">
+                    <div class="font-bold text-indigo-700 flex items-center gap-1.5 text-sm">
+                        <i class="fa-solid fa-mobile-screen-button text-indigo-600"></i> スマホ・タブレットでの保存手順
+                    </div>
+                    <div class="grid grid-cols-1 sm:grid-cols-2 gap-2 mt-1">
+                        <div class="bg-white p-2 rounded-lg border border-indigo-100 flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">1</span>
+                            <span>下の<strong>「別タブで開く」</strong>ボタンをタップ</span>
+                        </div>
+                        <div class="bg-white p-2 rounded-lg border border-indigo-100 flex items-center gap-2">
+                            <span class="w-5 h-5 rounded-full bg-indigo-600 text-white font-bold text-xs flex items-center justify-center shrink-0">2</span>
+                            <span>開いた画面で画像を<strong>長押しして「写真に保存」</strong></span>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Generated Output Image preview -->
+                <div class="border border-slate-300 rounded-xl overflow-hidden bg-white shadow-sm max-h-[42vh] flex items-center justify-center p-1 w-full">
+                    <img id="exportResultImg" src="" alt="Export Result" class="max-h-[40vh] w-auto max-w-full object-contain rounded">
+                </div>
+            </div>
+
+            <div class="px-5 py-3 border-t border-slate-200 bg-slate-50 flex flex-col sm:flex-row justify-between items-center gap-2">
+                <div class="flex items-center gap-2 w-full sm:w-auto">
+                    <button onclick="openResultInNewTab()" class="flex-1 sm:flex-initial px-5 py-2.5 bg-indigo-600 hover:bg-indigo-500 text-white text-xs sm:text-sm font-bold rounded-lg transition shadow-md flex items-center justify-center gap-2">
+                        <i class="fa-solid fa-arrow-up-right-from-square"></i> 別タブで開く (保存画面へ)
+                    </button>
+                    <button id="shareBtn" onclick="shareResultImage()" class="hidden px-3.5 py-2.5 bg-emerald-600 hover:bg-emerald-500 text-white text-xs sm:text-sm font-bold rounded-lg transition shadow-md flex items-center justify-center gap-1.5">
+                        <i class="fa-solid fa-share-nodes"></i> 共有
+                    </button>
+                </div>
+                <div class="flex items-center gap-2 w-full sm:w-auto justify-end">
+                    <button onclick="closeExportResultModal()" class="px-3.5 py-2 bg-slate-200 hover:bg-slate-300 text-slate-700 text-xs sm:text-sm font-medium rounded-lg transition">
+                        閉じる
+                    </button>
+                    <a id="exportResultDownloadBtn" href="#" download="レポート.png" class="px-3.5 py-2 bg-slate-700 hover:bg-slate-600 text-white text-xs sm:text-sm font-medium rounded-lg transition flex items-center gap-1.5" title="PC向けの直接ダウンロード">
+                        <i class="fa-solid fa-download"></i> PC保存
+                    </a>
                 </div>
             </div>
         </div>
     </div>
 
-    <!-- Cropping Modal -->
-    <div id="cropModal" class="flex">
-        <div id="cropModalContent">
-            <h2 class="text-2xl font-bold text-center mb-4">画像をトリミング</h2>
-            <div id="imageToCropContainer">
-                <img id="imageToCrop" src="">
-            </div>
-            <div class="flex justify-center mt-4 gap-4">
-                <button id="cropButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">決定</button>
-                <button id="cancelCropButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">キャンセル</button>
-            </div>
-        </div>
+    <!-- Hidden Loading Indicator -->
+    <div id="loadingOverlay" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden flex flex-col items-center justify-center text-white">
+        <div class="w-10 h-10 border-4 border-white border-t-transparent rounded-full animate-spin mb-3"></div>
+        <p id="loadingText" class="text-sm font-medium">画像を処理中...</p>
     </div>
 
-
     <script>
-        // DOM Elements
-        const imageLoader = document.getElementById('imageLoader');
-        const resetButton = document.getElementById('resetButton');
-        const downloadButton = document.getElementById('downloadButton');
-        const undoButton = document.getElementById('undoButton');
-        const imageCanvas = document.getElementById('imageCanvas');
-        const ctx = imageCanvas.getContext('2d');
-        const stageSelector = document.getElementById('stageSelector');
-        const chartCanvas = document.getElementById('pieChart');
-        const cropModal = document.getElementById('cropModal');
-        const imageToCrop = document.getElementById('imageToCrop');
-        const cropButton = document.getElementById('cropButton');
-        const cancelCropButton = document.getElementById('cancelCropButton');
-
-        // State
-        let image = new Image();
-        let counts = []; // Store coordinates and stage: {x, y, stage}
-        let currentStage = 'interphase';
-        let pieChart;
-        let cropper;
-
         const stageConfig = {
-            interphase: { color: 'rgba(59, 130, 246, 0.9)', label: '間期', bgColor: '#BFDBFE', baseColor: '#3B82F6', shape: 'circle' },
-            prophase:   { color: 'rgba(16, 185, 129, 0.9)', label: '前期', bgColor: '#A7F3D0', baseColor: '#10B981', shape: 'square' },
-            metaphase:  { color: 'rgba(245, 158, 11, 0.9)', label: '中期', bgColor: '#FDE68A', baseColor: '#F59E0B', shape: 'triangle' },
-            anaphase:   { color: 'rgba(239, 68, 68, 0.9)', label: '後期', bgColor: '#FECACA', baseColor: '#EF4444', shape: 'diamond' },
-            telophase:  { color: 'rgba(139, 92, 246, 0.9)', label: '終期', bgColor: '#DDD6FE', baseColor: '#8B5CF6', shape: 'star' }
+            interphase: { colorOpaque: 'rgba(59, 130, 246, 0.95)', colorTransparent: 'rgba(59, 130, 246, 0.45)', strokeColor: '#1d4ed8', label: '間期', bgColor: '#BFDBFE', baseColor: '#3B82F6', shape: 'circle', activeClass: 'bg-blue-50 border-blue-600 text-blue-900 ring-2 ring-blue-400' },
+            prophase:   { colorOpaque: 'rgba(16, 185, 129, 0.95)', colorTransparent: 'rgba(16, 185, 129, 0.45)', strokeColor: '#047857', label: '前期', bgColor: '#A7F3D0', baseColor: '#10B981', shape: 'square', activeClass: 'bg-emerald-50 border-emerald-600 text-emerald-900 ring-2 ring-emerald-400' },
+            metaphase:  { colorOpaque: 'rgba(245, 158, 11, 0.95)', colorTransparent: 'rgba(245, 158, 11, 0.45)', strokeColor: '#b45309', label: '中期', bgColor: '#FDE68A', baseColor: '#F59E0B', shape: 'triangle', activeClass: 'bg-amber-50 border-amber-600 text-amber-900 ring-2 ring-amber-400' },
+            anaphase:   { colorOpaque: 'rgba(239, 68, 68, 0.95)', colorTransparent: 'rgba(239, 68, 68, 0.45)', strokeColor: '#b91c1c', label: '後期', bgColor: '#FECACA', baseColor: '#EF4444', shape: 'diamond', activeClass: 'bg-red-50 border-red-600 text-red-900 ring-2 ring-red-400' },
+            telophase:  { colorOpaque: 'rgba(139, 92, 246, 0.95)', colorTransparent: 'rgba(139, 92, 246, 0.45)', strokeColor: '#6d28d9', label: '終期', bgColor: '#DDD6FE', baseColor: '#8B5CF6', shape: 'star', activeClass: 'bg-purple-50 border-purple-600 text-purple-900 ring-2 ring-purple-400' }
         };
 
-        // --- Marker Drawing Functions ---
-        function drawMarker(ctx, point) {
-            const config = stageConfig[point.stage];
-            const size = 20; // radius or half-width
+        let counts = []; // [{ x: float, y: float, stage: 'interphase' }]
+        let currentStage = 'interphase';
+        let currentToolMode = 'count'; // 'count', 'delete', 'pan'
+        let isMarkerTransparent = false;
 
-            ctx.save();
-            ctx.beginPath();
-            ctx.fillStyle = config.color;
-            ctx.strokeStyle = '#000000';
-            ctx.lineWidth = 3;
-            ctx.translate(point.x, point.y);
+        // Image & Viewport Transform State
+        let currentImage = null; // HTMLImageElement
+        let canvas = null;
+        let ctx = null;
 
-            switch (config.shape) {
-                case 'square':
-                    ctx.rect(-size, -size, size * 2, size * 2);
-                    break;
-                case 'triangle':
-                    ctx.moveTo(0, -size);
-                    ctx.lineTo(size, size);
-                    ctx.lineTo(-size, size);
-                    ctx.closePath();
-                    break;
-                case 'diamond':
-                    ctx.moveTo(0, -size);
-                    ctx.lineTo(size, 0);
-                    ctx.lineTo(0, size);
-                    ctx.lineTo(-size, 0);
-                    ctx.closePath();
-                    break;
-                case 'star':
-                    const spikes = 5;
-                    const outerRadius = size;
-                    const innerRadius = size / 2;
-                    let rot = Math.PI / 2 * 3;
-                    let x = 0;
-                    let y = 0;
-                    let step = Math.PI / spikes;
+        let transform = {
+            x: 0,
+            y: 0,
+            scale: 1.0
+        };
 
-                    ctx.moveTo(0, -outerRadius);
-                    for (let i = 0; i < spikes; i++) {
-                        x = Math.cos(rot) * outerRadius;
-                        y = Math.sin(rot) * outerRadius;
-                        ctx.lineTo(x, y);
-                        rot += step;
+        // Interaction State & Touch Guard Timestamps
+        let isDragging = false;
+        let startPan = { x: 0, y: 0 };
+        let touchPinchDist = 0;
+        let lastTouchTime = 0;
+        let lastTapTime = 0;
+        let touchStartPos = null;
 
-                        x = Math.cos(rot) * innerRadius;
-                        y = Math.sin(rot) * innerRadius;
-                        ctx.lineTo(x, y);
-                        rot += step;
-                    }
-                    ctx.lineTo(0, -outerRadius);
-                    ctx.closePath();
-                    break;
-                case 'circle':
-                default:
-                    ctx.arc(0, 0, size, 0, 2 * Math.PI, false);
-                    break;
-            }
-            ctx.fill();
-            ctx.stroke();
-            ctx.restore();
-        }
+        // External Libraries
+        let cropper = null;
+        let stageChart = null;
 
-        // --- Core Functions ---
+        window.onload = function () {
+            canvas = document.getElementById('mainCanvas');
+            ctx = canvas.getContext('2d');
 
-        function updateDataDisplays() {
-            const stageCounts = { interphase: 0, prophase: 0, metaphase: 0, anaphase: 0, telophase: 0 };
-            counts.forEach(point => { stageCounts[point.stage]++; });
-
-            const totalCount = counts.length;
-            document.getElementById('totalCellCount').textContent = totalCount;
-            document.getElementById('summaryTotalCount').textContent = totalCount;
-
-            const percentages = [];
-            for (const stage in stageCounts) {
-                document.getElementById(`${stage}Count`).textContent = stageCounts[stage];
-                percentages.push(stageCounts[stage]); // Use raw counts for pie chart data
-            }
+            initChart();
+            setupEventListeners();
+            resizeCanvasToViewport();
             
-            if (pieChart) {
-                pieChart.data.datasets[0].data = percentages;
-                pieChart.update();
-            }
-            undoButton.disabled = totalCount === 0;
+            // Wait for user action (Do not auto-load image)
+        };
+
+        function resizeCanvasToViewport() {
+            const container = document.getElementById('viewportContainer');
+            if (!container) return;
+            canvas.width = container.clientWidth;
+            canvas.height = container.clientHeight;
+            redrawCanvas();
         }
 
-        function redraw() {
-            if (!image.src) return;
-            imageCanvas.width = image.naturalWidth;
-            imageCanvas.height = image.naturalHeight;
-            ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
-            ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);
+        window.addEventListener('resize', () => {
+            resizeCanvasToViewport();
+        });
 
-            counts.forEach((point, index) => {
-                drawMarker(ctx, point);
-                
-                // Draw number inside marker
-                ctx.font = 'bold 28px Arial';
-                ctx.fillStyle = 'white';
-                ctx.textAlign = 'center';
-                ctx.textBaseline = 'middle';
-                ctx.fillText(index + 1, point.x, point.y);
+        function setStage(stageKey) {
+            currentStage = stageKey;
+            
+            Object.keys(stageConfig).forEach(key => {
+                const btn = document.getElementById(`btn-${key}`);
+                if (btn) {
+                    if (key === stageKey) {
+                        btn.className = `stage-btn active flex flex-col items-center justify-center p-2 rounded-xl border-2 transition transform scale-105 shadow-md ${stageConfig[key].activeClass}`;
+                    } else {
+                        btn.className = `stage-btn flex flex-col items-center justify-center p-2 rounded-xl border-2 border-slate-200 hover:border-slate-300 transition bg-white text-slate-700 opacity-80 hover:opacity-100 shadow-sm`;
+                    }
+                }
             });
-            updateDataDisplays();
-        }
-        
-        function handleImage(e) {
-            const files = e.target.files;
-            if (files && files.length > 0) {
-                const reader = new FileReader();
-                reader.onload = (event) => {
-                    imageToCrop.src = event.target.result;
-                    cropModal.style.display = 'flex';
-                    if(cropper) cropper.destroy();
-                    cropper = new Cropper(imageToCrop, { aspectRatio: 0, viewMode: 1 });
-                };
-                reader.readAsDataURL(files[0]);
+
+            // Update active mode label
+            if (currentToolMode === 'count') {
+                const modeLabel = document.getElementById('activeModeLabel');
+                if (modeLabel) {
+                    modeLabel.innerText = `モード: カウント (${stageConfig[currentStage].label})`;
+                }
+            } else {
+                setToolMode('count');
             }
-            e.target.value = '';
         }
 
-        function resetCounts() {
-            counts = [];
-            redraw();
+        function setToolMode(mode) {
+            currentToolMode = mode;
+            const modes = ['count', 'delete', 'pan'];
+            
+            modes.forEach(m => {
+                const btn = document.getElementById(`mode-${m}`);
+                if (m === mode) {
+                    btn.className = "px-2.5 py-1 rounded-md font-medium transition bg-white shadow-sm text-slate-800";
+                } else {
+                    btn.className = "px-2.5 py-1 rounded-md font-medium transition text-slate-600 hover:text-slate-900";
+                }
+            });
+
+            const modeLabel = document.getElementById('activeModeLabel');
+            if (mode === 'count') {
+                canvas.style.cursor = 'crosshair';
+                modeLabel.innerText = `モード: カウント (${stageConfig[currentStage].label})`;
+            } else if (mode === 'delete') {
+                canvas.style.cursor = 'pointer';
+                modeLabel.innerText = 'モード: 消去 (マーカーをクリック)';
+            } else if (mode === 'pan') {
+                canvas.style.cursor = 'grab';
+                modeLabel.innerText = 'モード: 画像の移動';
+            }
         }
 
-        function handleUndo() {
+        function toggleTransparentMarkers(checked) {
+            isMarkerTransparent = checked;
+            redrawCanvas();
+        }
+
+        function undoLastCount() {
             if (counts.length > 0) {
                 counts.pop();
-                redraw();
+                updateStatsAndChart();
+                redrawCanvas();
             }
         }
-        
-        function handleCanvasClick(e) {
-            if (!image.src) return;
-            const rect = imageCanvas.getBoundingClientRect();
-            const scaleX = imageCanvas.width / rect.width;
-            const scaleY = imageCanvas.height / rect.height;
-            const x = (e.clientX - rect.left) * scaleX;
-            const y = (e.clientY - rect.top) * scaleY;
-            counts.push({ x, y, stage: currentStage });
-            redraw();
-        }
-        
-        function handleStageSelect(e) {
-            if (e.target.tagName !== 'BUTTON') return;
-            currentStage = e.target.dataset.stage;
-            document.querySelectorAll('.stage-btn').forEach(btn => btn.classList.remove('active'));
-            e.target.classList.add('active');
+
+        function confirmResetAll() {
+            if (counts.length === 0) return;
+            counts = [];
+            updateStatsAndChart();
+            redrawCanvas();
         }
 
-        function downloadImage() {
-            if (!image.src) return;
+        function loadSampleImage() {
+            showLoading(true, "サンプル画像を生成中...");
 
-            const dataWidth = 350;
-            const padding = 25;
-            const lineHeight = 40;
-            const headerHeight = 50;
-            const dataHeight = headerHeight + (Object.keys(stageConfig).length + 2) * lineHeight + 2 * padding;
+            const sCanvas = document.createElement('canvas');
+            sCanvas.width = 1000;
+            sCanvas.height = 1000;
+            const sCtx = sCanvas.getContext('2d');
 
-            const newCanvas = document.createElement('canvas');
-            newCanvas.width = imageCanvas.width + dataWidth + padding;
-            newCanvas.height = Math.max(imageCanvas.height, dataHeight);
-            const newCtx = newCanvas.getContext('2d');
+            // Circular lens vignette field
+            const bgGrad = sCtx.createRadialGradient(500, 500, 100, 500, 500, 500);
+            bgGrad.addColorStop(0, '#fbf7f0');
+            bgGrad.addColorStop(0.7, '#e8d9cb');
+            bgGrad.addColorStop(1, '#a39282');
+            sCtx.fillStyle = bgGrad;
+            sCtx.fillRect(0, 0, 1000, 1000);
 
-            newCtx.fillStyle = 'white';
-            newCtx.fillRect(0, 0, newCanvas.width, newCanvas.height);
-            newCtx.drawImage(imageCanvas, 0, 0);
+            sCtx.save();
+            sCtx.beginPath();
+            sCtx.arc(500, 500, 490, 0, Math.PI * 2);
+            sCtx.clip();
 
-            let currentY = padding;
-            const tableX = imageCanvas.width + padding;
-            newCtx.font = 'bold 28px Arial';
-            newCtx.fillStyle = 'black';
-            newCtx.textAlign = 'left';
-            newCtx.textBaseline = 'top';
-            newCtx.fillText('測定結果', tableX, currentY);
-            currentY += headerHeight;
+            // Plant tissue cell background
+            sCtx.fillStyle = '#e4c3d4';
+            sCtx.fillRect(0, 0, 1000, 1000);
 
-            newCtx.font = '22px Arial';
-            const stageCounts = { interphase: 0, prophase: 0, metaphase: 0, anaphase: 0, telophase: 0 };
-            counts.forEach(point => { stageCounts[point.stage]++; });
+            // Draw cells matching microscopic onion root tissue
+            const rows = 14;
+            const cols = 14;
+            const cellW = 1000 / cols;
+            const cellH = 1000 / rows;
 
-            for (const stage in stageConfig) {
-                const config = stageConfig[stage];
-                newCtx.fillStyle = config.bgColor;
-                newCtx.fillRect(tableX, currentY, dataWidth - padding, lineHeight);
-                newCtx.fillStyle = 'black';
-                newCtx.fillText(`${config.label}:`, tableX + 10, currentY + 8);
-                newCtx.textAlign = 'right';
-                newCtx.fillText(stageCounts[stage], tableX + dataWidth - padding - 10, currentY + 8);
-                newCtx.textAlign = 'left';
-                currentY += lineHeight;
+            let seed = 42;
+            function random() {
+                let x = Math.sin(seed++) * 10000;
+                return x - Math.floor(x);
             }
+
+            for (let r = 0; r < rows; r++) {
+                for (let c = 0; c < cols; c++) {
+                    const cx = c * cellW + (random() * 8 - 4);
+                    const cy = r * cellH + (random() * 8 - 4);
+                    const cw = cellW + (random() * 6 - 3);
+                    const ch = cellH + (random() * 6 - 3);
+
+                    // Cell membrane wall
+                    sCtx.strokeStyle = 'rgba(140, 75, 105, 0.55)';
+                    sCtx.lineWidth = 2.5;
+                    sCtx.strokeRect(cx, cy, cw - 2, ch - 2);
+
+                    // Cytoplasm
+                    sCtx.fillStyle = `rgba(225, 180, 200, ${0.4 + random() * 0.3})`;
+                    sCtx.fillRect(cx + 1, cy + 1, cw - 4, ch - 4);
+
+                    const nX = cx + cw / 2;
+                    const nY = cy + ch / 2;
+
+                    // Metaphase top middle
+                    if (r === 1 && c === 7) {
+                        sCtx.save();
+                        sCtx.translate(nX, nY);
+                        sCtx.rotate(Math.PI / 6);
+                        sCtx.fillStyle = '#5c1d38';
+                        for (let i = -12; i <= 12; i += 3) {
+                            sCtx.fillRect(i, -12 + (random() * 4 - 2), 2.5, 24);
+                        }
+                        sCtx.restore();
+                    } 
+                    // Metaphase center
+                    else if (r === 6 && c === 7) {
+                        sCtx.save();
+                        sCtx.translate(nX, nY);
+                        sCtx.rotate(-Math.PI / 12);
+                        sCtx.fillStyle = '#611a3b';
+                        for (let i = -14; i <= 14; i += 3) {
+                            sCtx.fillRect(i, -10 + (random() * 4 - 2), 2.5, 20);
+                        }
+                        sCtx.restore();
+                    }
+                    // Anaphase bottom right
+                    else if (r === 13 && c === 12) {
+                        sCtx.fillStyle = '#5a1936';
+                        for (let i = -10; i <= 10; i += 4) {
+                            sCtx.fillRect(nX - 12 + i, nY - 14, 3, 10);
+                            sCtx.fillRect(nX - 12 + i, nY + 4, 3, 10);
+                        }
+                    }
+                    // Prophase
+                    else if ((r === 4 && c === 3) || (r === 9 && c === 6)) {
+                        sCtx.fillStyle = 'rgba(110, 30, 70, 0.85)';
+                        sCtx.beginPath();
+                        sCtx.arc(nX, nY, 16, 0, Math.PI * 2);
+                        sCtx.fill();
+                        sCtx.strokeStyle = '#3a0820';
+                        sCtx.lineWidth = 2;
+                        sCtx.stroke();
+                    }
+                    // Interphase (default)
+                    else {
+                        const nRadius = 14 + random() * 4;
+                        sCtx.fillStyle = 'rgba(130, 45, 85, 0.75)';
+                        sCtx.beginPath();
+                        sCtx.arc(nX, nY, nRadius, 0, Math.PI * 2);
+                        sCtx.fill();
+                        sCtx.fillStyle = 'rgba(70, 15, 45, 0.9)';
+                        sCtx.beginPath();
+                        sCtx.arc(nX + (random() * 4 - 2), nY + (random() * 4 - 2), 4, 0, Math.PI * 2);
+                        sCtx.fill();
+                    }
+                }
+            }
+
+            sCtx.restore();
+
+            const img = new Image();
+            img.onload = function () {
+                currentImage = img;
+                counts = []; // Reset markers
+                fitImageToViewport();
+                updateStatsAndChart();
+                document.getElementById('emptyCanvasGuide').classList.add('hidden');
+                showLoading(false);
+            };
+            img.src = sCanvas.toDataURL('image/jpeg', 0.92);
+        }
+
+        document.getElementById('imageInput').addEventListener('change', async function (e) {
+            const file = e.target.files[0];
+            if (!file) return;
+
+            showLoading(true, "画像を読み込んでいます...");
+
+            try {
+                let processFile = file;
+
+                // Check HEIC / HEIF format for iPhone users
+                const fileName = file.name.toLowerCase();
+                if (fileName.endsWith('.heic') || fileName.endsWith('.heif') || file.type === 'image/heic') {
+                    showLoading(true, "HEIC形式を変換中...");
+                    const blob = await heic2any({ blob: file, toType: "image/jpeg" });
+                    processFile = Array.isArray(blob) ? blob[0] : blob;
+                }
+
+                const reader = new FileReader();
+                reader.onload = function (event) {
+                    showLoading(false);
+                    openCropperModal(event.target.result);
+                };
+                reader.readAsDataURL(processFile);
+            } catch (err) {
+                console.error(err);
+                showLoading(false);
+                alert("画像の読み込みに失敗しました。対応している画像フォーマットをお試しください。");
+            }
+            e.target.value = '';
+        });
+
+        function openCropperModal(imgSrc) {
+            const cropImg = document.getElementById('cropperImage');
+            cropImg.src = imgSrc;
+            document.getElementById('cropperModal').classList.remove('hidden');
+
+            if (cropper) {
+                cropper.destroy();
+            }
+
+            cropper = new Cropper(cropImg, {
+                viewMode: 1,
+                autoCropArea: 0.9,
+                responsive: true
+            });
+        }
+
+        function closeCropperModal() {
+            document.getElementById('cropperModal').classList.add('hidden');
+            if (cropper) {
+                cropper.destroy();
+                cropper = null;
+            }
+        }
+
+        function applyCrop() {
+            if (!cropper) return;
+            showLoading(true, "クロップした画像を反映中...");
             
-            newCtx.beginPath();
-            newCtx.moveTo(tableX, currentY);
-            newCtx.lineTo(tableX + dataWidth - padding, currentY);
-            newCtx.stroke();
-            currentY += 5;
+            const croppedCanvas = cropper.getCroppedCanvas({
+                maxWidth: 4096,
+                maxHeight: 4096
+            });
 
-            newCtx.font = 'bold 22px Arial';
-            newCtx.fillStyle = '#e5e7eb';
-            newCtx.fillRect(tableX, currentY, dataWidth - padding, lineHeight);
-            newCtx.fillStyle = 'black';
-            newCtx.fillText('合計:', tableX + 10, currentY + 8);
-            newCtx.textAlign = 'right';
-            newCtx.fillText(counts.length, tableX + dataWidth - padding - 10, currentY + 8);
-            newCtx.textAlign = 'left';
+            const img = new Image();
+            img.onload = function () {
+                currentImage = img;
+                counts = []; // Reset counts for new image
+                closeCropperModal();
+                fitImageToViewport();
+                updateStatsAndChart();
+                document.getElementById('emptyCanvasGuide').classList.add('hidden');
+                showLoading(false);
+            };
+            img.src = croppedCanvas.toDataURL();
+        }
 
-            const link = document.createElement('a');
-            link.download = 'cell-count-result.png';
-            link.href = newCanvas.toDataURL('image/png');
-            link.click();
+        function fitImageToViewport() {
+            if (!currentImage) return;
+            const vWidth = canvas.width;
+            const vHeight = canvas.height;
+
+            const scaleX = vWidth / currentImage.width;
+            const scaleY = vHeight / currentImage.height;
+            const scale = Math.min(scaleX, scaleY) * 0.92;
+
+            transform.scale = scale;
+            transform.x = (vWidth - currentImage.width * scale) / 2;
+            transform.y = (vHeight - currentImage.height * scale) / 2;
+
+            redrawCanvas();
+        }
+
+        function redrawCanvas() {
+            if (!ctx) return;
+
+            ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+            if (!currentImage) return;
+
+            ctx.save();
+            ctx.translate(transform.x, transform.y);
+            ctx.scale(transform.scale, transform.scale);
+
+            // Draw image
+            ctx.drawImage(currentImage, 0, 0);
+
+            // Compact marker size so chromosome shapes remain fully visible
+            const baseVisualRadius = 6.5; 
+            const markerRadius = baseVisualRadius / transform.scale;
+
+            const stageCounters = {
+                interphase: 0,
+                prophase: 0,
+                metaphase: 0,
+                anaphase: 0,
+                telophase: 0
+            };
+
+            counts.forEach((pt) => {
+                stageCounters[pt.stage]++;
+                const seqNum = stageCounters[pt.stage];
+                drawCellMarker(ctx, pt.x, pt.y, pt.stage, markerRadius, seqNum, transform.scale);
+            });
+
+            ctx.restore();
+
+            document.getElementById('zoomLevelText').innerText = `${Math.round(transform.scale * 100)}%`;
+            document.getElementById('totalCountBadge').innerText = counts.length;
+        }
+
+        function drawCellMarker(targetCtx, x, y, stageKey, radius, number, currentZoomScale) {
+            const conf = stageConfig[stageKey];
+            
+            targetCtx.save();
+            targetCtx.fillStyle = isMarkerTransparent ? conf.colorTransparent : conf.colorOpaque;
+            targetCtx.strokeStyle = conf.strokeColor;
+            targetCtx.lineWidth = 1.5 / currentZoomScale;
+
+            targetCtx.beginPath();
+
+            switch (conf.shape) {
+                case 'circle':
+                    targetCtx.arc(x, y, radius, 0, Math.PI * 2);
+                    break;
+                case 'square':
+                    targetCtx.rect(x - radius, y - radius, radius * 2, radius * 2);
+                    break;
+                case 'triangle':
+                    targetCtx.moveTo(x, y - radius * 1.2);
+                    targetCtx.lineTo(x + radius * 1.1, y + radius * 0.9);
+                    targetCtx.lineTo(x - radius * 1.1, y + radius * 0.9);
+                    targetCtx.closePath();
+                    break;
+                case 'diamond':
+                    targetCtx.moveTo(x, y - radius * 1.2);
+                    targetCtx.lineTo(x + radius * 1.1, y);
+                    targetCtx.lineTo(x, y + radius * 1.2);
+                    targetCtx.lineTo(x - radius * 1.1, y);
+                    targetCtx.closePath();
+                    break;
+                case 'star':
+                    drawStarShape(targetCtx, x, y, 5, radius * 1.2, radius * 0.55);
+                    break;
+            }
+
+            targetCtx.fill();
+            targetCtx.stroke();
+
+            // Contrast outline
+            targetCtx.strokeStyle = '#ffffff';
+            targetCtx.lineWidth = 0.7 / currentZoomScale;
+            targetCtx.stroke();
+
+            // Sequence number
+            if (number !== undefined && number !== null) {
+                const fontSize = Math.max(7, Math.round(7.5 / currentZoomScale));
+                targetCtx.fillStyle = '#ffffff';
+                targetCtx.font = `bold ${fontSize}px sans-serif`;
+                targetCtx.textAlign = 'center';
+                targetCtx.textBaseline = 'middle';
+
+                targetCtx.strokeStyle = '#000000';
+                targetCtx.lineWidth = 1.4 / currentZoomScale;
+                targetCtx.strokeText(number, x, y + (conf.shape === 'triangle' ? radius * 0.2 : 0));
+                targetCtx.fillText(number, x, y + (conf.shape === 'triangle' ? radius * 0.2 : 0));
+            }
+
+            targetCtx.restore();
+        }
+
+        function drawStarShape(targetCtx, cx, cy, spikes, outerRadius, innerRadius) {
+            let rot = Math.PI / 2 * 3;
+            let x = cx;
+            let y = cy;
+            let step = Math.PI / spikes;
+
+            targetCtx.moveTo(cx, cy - outerRadius);
+            for (let i = 0; i < spikes; i++) {
+                x = cx + Math.cos(rot) * outerRadius;
+                y = cy + Math.sin(rot) * outerRadius;
+                targetCtx.lineTo(x, y);
+                rot += step;
+
+                x = cx + Math.cos(rot) * innerRadius;
+                y = cy + Math.sin(rot) * innerRadius;
+                targetCtx.lineTo(x, y);
+                rot += step;
+            }
+            targetCtx.lineTo(cx, cy - outerRadius);
+            targetCtx.closePath();
+        }
+
+        function setupEventListeners() {
+            // Mouse Events
+            canvas.addEventListener('mousedown', handleMouseDown);
+            window.addEventListener('mousemove', handleMouseMove);
+            window.addEventListener('mouseup', handleMouseUp);
+            canvas.addEventListener('wheel', handleWheel, { passive: false });
+
+            // Touch Events
+            canvas.addEventListener('touchstart', handleTouchStart, { passive: false });
+            canvas.addEventListener('touchmove', handleTouchMove, { passive: false });
+            canvas.addEventListener('touchend', handleTouchEnd);
+        }
+
+        function getMousePosInCanvas(e) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: e.clientX - rect.left,
+                y: e.clientY - rect.top
+            };
+        }
+
+        function handleMouseDown(e) {
+            if (!currentImage) return;
+            // Prevent synthetic mouse event triggered by touch
+            if (Date.now() - lastTouchTime < 800) return;
+
+            const pos = getMousePosInCanvas(e);
+
+            if (currentToolMode === 'pan' || e.button === 1) {
+                isDragging = true;
+                startPan = { x: pos.x - transform.x, y: pos.y - transform.y };
+                canvas.style.cursor = 'grabbing';
+            } else if (currentToolMode === 'count' && e.button === 0) {
+                const imgX = (pos.x - transform.x) / transform.scale;
+                const imgY = (pos.y - transform.y) / transform.scale;
+
+                if (imgX >= 0 && imgX <= currentImage.width && imgY >= 0 && imgY <= currentImage.height) {
+                    addCountMarker(imgX, imgY);
+                }
+            } else if (currentToolMode === 'delete' && e.button === 0) {
+                deleteMarkerNear(pos.x, pos.y);
+            }
+        }
+
+        function handleMouseMove(e) {
+            if (!isDragging) return;
+            const pos = getMousePosInCanvas(e);
+            transform.x = pos.x - startPan.x;
+            transform.y = pos.y - startPan.y;
+            redrawCanvas();
+        }
+
+        function handleMouseUp() {
+            if (isDragging) {
+                isDragging = false;
+                if (currentToolMode === 'pan') canvas.style.cursor = 'grab';
+            }
+        }
+
+        function handleWheel(e) {
+            if (!currentImage) return;
+            e.preventDefault();
+
+            const pos = getMousePosInCanvas(e);
+            const zoomFactor = e.deltaY < 0 ? 1.15 : 0.85;
+
+            zoomAtPoint(pos.x, pos.y, zoomFactor);
+        }
+
+        function zoomAtPoint(px, py, factor) {
+            const newScale = Math.min(Math.max(0.2, transform.scale * factor), 15.0);
+            
+            transform.x = px - (px - transform.x) * (newScale / transform.scale);
+            transform.y = py - (py - transform.y) * (newScale / transform.scale);
+            transform.scale = newScale;
+
+            redrawCanvas();
+        }
+
+        function zoomCanvas(factor) {
+            if (!canvas) return;
+            zoomAtPoint(canvas.width / 2, canvas.height / 2, factor);
+        }
+
+        function resetZoom() {
+            fitImageToViewport();
+        }
+
+        function deleteMarkerNear(canvasX, canvasY) {
+            if (counts.length === 0) return;
+
+            const clickImgX = (canvasX - transform.x) / transform.scale;
+            const clickImgY = (canvasY - transform.y) / transform.scale;
+            const threshold = 22 / transform.scale;
+
+            let closestIdx = -1;
+            let minDist = Infinity;
+
+            counts.forEach((pt, idx) => {
+                const dist = Math.hypot(pt.x - clickImgX, pt.y - clickImgY);
+                if (dist < threshold && dist < minDist) {
+                    minDist = dist;
+                    closestIdx = idx;
+                }
+            });
+
+            if (closestIdx !== -1) {
+                counts.splice(closestIdx, 1);
+                updateStatsAndChart();
+                redrawCanvas();
+            }
+        }
+
+        function addCountMarker(imgX, imgY) {
+            counts.push({ x: imgX, y: imgY, stage: currentStage });
+            updateStatsAndChart();
+            redrawCanvas();
+        }
+
+        // Mobile Touch Handlers (Single Tap Guard & Double Tap Prevention)
+        function handleTouchStart(e) {
+            if (!currentImage) return;
+            lastTouchTime = Date.now();
+
+            if (e.touches.length === 1) {
+                const pos = getTouchPosInCanvas(e.touches[0]);
+                touchStartPos = { x: pos.x, y: pos.y };
+
+                if (currentToolMode === 'pan') {
+                    isDragging = true;
+                    startPan = { x: pos.x - transform.x, y: pos.y - transform.y };
+                }
+            } else if (e.touches.length === 2) {
+                isDragging = false;
+                touchPinchDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+            }
+        }
+
+        function handleTouchMove(e) {
+            if (!currentImage) return;
+            if (e.cancelable) e.preventDefault();
+            lastTouchTime = Date.now();
+
+            if (e.touches.length === 1 && isDragging) {
+                const pos = getTouchPosInCanvas(e.touches[0]);
+                transform.x = pos.x - startPan.x;
+                transform.y = pos.y - startPan.y;
+                redrawCanvas();
+            } else if (e.touches.length === 2) {
+                const newDist = Math.hypot(
+                    e.touches[0].clientX - e.touches[1].clientX,
+                    e.touches[0].clientY - e.touches[1].clientY
+                );
+                if (touchPinchDist > 0) {
+                    const factor = newDist / touchPinchDist;
+                    const midX = (e.touches[0].clientX + e.touches[1].clientX) / 2;
+                    const midY = (e.touches[0].clientY + e.touches[1].clientY) / 2;
+                    const rect = canvas.getBoundingClientRect();
+                    zoomAtPoint(midX - rect.left, midY - rect.top, factor);
+                }
+                touchPinchDist = newDist;
+            }
+        }
+
+        function handleTouchEnd(e) {
+            if (!currentImage) return;
+            lastTouchTime = Date.now();
+
+            if (touchStartPos && e.changedTouches.length === 1 && e.touches.length === 0) {
+                const endPos = getTouchPosInCanvas(e.changedTouches[0]);
+                const moveDist = Math.hypot(endPos.x - touchStartPos.x, endPos.y - touchStartPos.y);
+
+                const now = Date.now();
+                // 300ms tap debounce to prevent double-counting on mobile
+                if (moveDist < 12 && (now - lastTapTime > 300)) {
+                    lastTapTime = now;
+                    if (currentToolMode === 'count') {
+                        const imgX = (endPos.x - transform.x) / transform.scale;
+                        const imgY = (endPos.y - transform.y) / transform.scale;
+                        if (imgX >= 0 && imgX <= currentImage.width && imgY >= 0 && imgY <= currentImage.height) {
+                            addCountMarker(imgX, imgY);
+                        }
+                    } else if (currentToolMode === 'delete') {
+                        deleteMarkerNear(endPos.x, endPos.y);
+                    }
+                }
+            }
+
+            isDragging = false;
+            touchPinchDist = 0;
+            touchStartPos = null;
+        }
+
+        function getTouchPosInCanvas(touch) {
+            const rect = canvas.getBoundingClientRect();
+            return {
+                x: touch.clientX - rect.left,
+                y: touch.clientY - rect.top
+            };
         }
 
         function initChart() {
+            const chartCtx = document.getElementById('stagePieChart').getContext('2d');
+            
             Chart.register(ChartDataLabels);
-            pieChart = new Chart(chartCanvas.getContext('2d'), {
+
+            stageChart = new Chart(chartCtx, {
                 type: 'pie',
                 data: {
-                    labels: Object.values(stageConfig).map(s => s.label),
+                    labels: ['間期', '前期', '中期', '後期', '終期'],
                     datasets: [{
                         data: [0, 0, 0, 0, 0],
-                        backgroundColor: Object.values(stageConfig).map(s => s.baseColor),
+                        backgroundColor: [
+                            stageConfig.interphase.baseColor,
+                            stageConfig.prophase.baseColor,
+                            stageConfig.metaphase.baseColor,
+                            stageConfig.anaphase.baseColor,
+                            stageConfig.telophase.baseColor
+                        ],
+                        borderWidth: 2,
+                        borderColor: '#ffffff'
                     }]
                 },
                 options: {
                     responsive: true,
-                    plugins: { 
-                        legend: { display: true, position: 'bottom' },
-                        tooltip: { enabled: false },
+                    maintainAspectRatio: false,
+                    plugins: {
+                        legend: {
+                            display: false
+                        },
                         datalabels: {
-                            formatter: (value, ctx) => {
-                                let sum = 0;
-                                let dataArr = ctx.chart.data.datasets[0].data;
-                                dataArr.map(data => { sum += data; });
-                                if (sum === 0) return '';
-                                let percentage = (value * 100 / sum).toFixed(1) + '%';
-                                return percentage;
+                            color: '#ffffff',
+                            font: {
+                                weight: 'bold',
+                                size: 11
                             },
-                            color: '#fff',
-                            font: { weight: 'bold' }
+                            formatter: (value, ctx) => {
+                                const sum = ctx.dataset.data.reduce((a, b) => a + b, 0);
+                                if (sum === 0 || value === 0) return '';
+                                const percentage = (value * 100 / sum).toFixed(1) + "%";
+                                return percentage;
+                            }
+                        },
+                        tooltip: {
+                            callbacks: {
+                                label: function(context) {
+                                    const total = context.dataset.data.reduce((a, b) => a + b, 0);
+                                    const val = context.raw || 0;
+                                    const pct = total > 0 ? ((val / total) * 100).toFixed(1) : '0.0';
+                                    return `${context.label}: ${val}個 (${pct}%)`;
+                                }
+                            }
                         }
                     }
                 }
             });
         }
-        
-        // --- Event Listeners ---
-        imageLoader.addEventListener('change', handleImage);
-        resetButton.addEventListener('click', resetCounts);
-        undoButton.addEventListener('click', handleUndo);
-        downloadButton.addEventListener('click', downloadImage);
-        imageCanvas.addEventListener('click', handleCanvasClick);
-        stageSelector.addEventListener('click', handleStageSelect);
-        window.addEventListener('resize', redraw);
 
-        cropButton.addEventListener('click', () => {
-            image.src = cropper.getCroppedCanvas().toDataURL();
-            image.onload = () => resetCounts();
-            cropModal.style.display = 'none';
-        });
+        function updateStatsAndChart() {
+            const countsMap = {
+                interphase: 0,
+                prophase: 0,
+                metaphase: 0,
+                anaphase: 0,
+                telophase: 0
+            };
 
-        cancelCropButton.addEventListener('click', () => {
-            cropModal.style.display = 'none';
-        });
+            counts.forEach(c => {
+                if (countsMap[c.stage] !== undefined) {
+                    countsMap[c.stage]++;
+                }
+            });
 
-        // --- Initial Load ---
-        document.querySelectorAll('.stage-btn').forEach(btn => {
-            const stage = btn.dataset.stage;
-            btn.style.backgroundColor = stageConfig[stage].baseColor;
-            btn.classList.add('text-white', 'font-bold', 'py-3', 'px-5', 'text-lg', 'rounded-lg', 'transition-all', 'duration-200');
-        });
+            const total = counts.length;
 
-        image.onload = redraw;
-        image.src = 'https://storage.googleapis.com/gemini-prod/images/483e9281-bab5-4d92-a8b6-81f008851380';
-        
-        window.onload = () => {
-            initChart();
-            updateDataDisplays();
-        };
+            Object.keys(countsMap).forEach(key => {
+                const count = countsMap[key];
+                const ratio = total > 0 ? ((count / total) * 100).toFixed(1) : '0.0';
+
+                document.getElementById(`count-${key}`).innerText = count;
+                document.getElementById(`ratio-${key}`).innerText = `${ratio}%`;
+            });
+
+            document.getElementById('totalCellCount').innerText = total;
+
+            if (stageChart) {
+                stageChart.data.datasets[0].data = [
+                    countsMap.interphase,
+                    countsMap.prophase,
+                    countsMap.metaphase,
+                    countsMap.anaphase,
+                    countsMap.telophase
+                ];
+                stageChart.update();
+            }
+        }
+
+        function openExportModal() {
+            if (!currentImage) {
+                alert("エクスポートする画像がありません。画像を読み込んでから実行してください。");
+                return;
+            }
+            document.getElementById('exportModal').classList.remove('hidden');
+        }
+
+        function closeExportModal() {
+            document.getElementById('exportModal').classList.add('hidden');
+        }
+
+        function generateAndDownloadExport() {
+            showLoading(true, "レポート用画像を合成出力中...");
+            
+            setTimeout(() => {
+                try {
+                    const drawMarkers = document.getElementById('expOptMarkers').checked;
+                    const drawNumbers = document.getElementById('expOptNumbers').checked;
+                    const attachTable = document.getElementById('expOptTable').checked;
+                    const attachChart = document.getElementById('expOptChart').checked;
+                    const titleText = document.getElementById('exportTitleInput').value || "体細胞分裂観察レポート";
+                    
+                    const detailModeEle = document.querySelector('input[name="expTableDetail"]:checked');
+                    const detailMode = detailModeEle ? detailModeEle.value : 'both';
+
+                    const imgWidth = currentImage.width;
+                    const imgHeight = currentImage.height;
+
+                    const sidebarWidth = attachTable ? 480 : 0;
+                    const headerHeight = 90;
+                    const padding = 30;
+
+                    const exportCanvas = document.createElement('canvas');
+                    exportCanvas.width = imgWidth + sidebarWidth + (attachTable ? padding * 3 : padding * 2);
+                    exportCanvas.height = Math.max(imgHeight + headerHeight + padding * 2, attachTable ? 750 : 0);
+
+                    const exCtx = exportCanvas.getContext('2d');
+
+                    // Background fill
+                    exCtx.fillStyle = '#ffffff';
+                    exCtx.fillRect(0, 0, exportCanvas.width, exportCanvas.height);
+
+                    // Draw Header
+                    exCtx.fillStyle = '#1e293b';
+                    exCtx.fillRect(0, 0, exportCanvas.width, headerHeight);
+
+                    exCtx.fillStyle = '#ffffff';
+                    exCtx.font = 'bold 28px sans-serif';
+                    exCtx.textBaseline = 'middle';
+                    exCtx.fillText(titleText, padding, headerHeight / 2 - 8);
+
+                    const today = new Date().toLocaleDateString('ja-JP');
+                    exCtx.fillStyle = '#94a3b8';
+                    exCtx.font = '14px sans-serif';
+                    exCtx.fillText(`解析日時: ${today}  |  総細胞数: ${counts.length}個`, padding, headerHeight / 2 + 20);
+
+                    // Draw Base Image
+                    const imgX = padding;
+                    const imgY = headerHeight + padding;
+                    exCtx.drawImage(currentImage, imgX, imgY);
+
+                    // Draw Markers
+                    if (drawMarkers) {
+                        const baseMarkerRadius = 8;
+                        const stageCounters = { interphase: 0, prophase: 0, metaphase: 0, anaphase: 0, telophase: 0 };
+
+                        exCtx.save();
+                        exCtx.translate(imgX, imgY);
+
+                        counts.forEach((pt) => {
+                            stageCounters[pt.stage]++;
+                            const num = drawNumbers ? stageCounters[pt.stage] : null;
+                            drawCellMarker(exCtx, pt.x, pt.y, pt.stage, baseMarkerRadius, num, 1.0);
+                        });
+
+                        exCtx.restore();
+                    }
+
+                    // Draw Sidebar Table & Chart
+                    if (attachTable) {
+                        const sideX = imgWidth + padding * 2;
+                        let sideY = headerHeight + padding;
+
+                        exCtx.fillStyle = '#0f172a';
+                        exCtx.font = 'bold 22px sans-serif';
+                        exCtx.fillText('測定データ集計表', sideX, sideY + 15);
+                        sideY += 45;
+
+                        const tableW = sidebarWidth;
+                        const rowH = 46;
+                        const stages = ['interphase', 'prophase', 'metaphase', 'anaphase', 'telophase'];
+                        const totalCount = counts.length;
+
+                        // Table Header
+                        exCtx.fillStyle = '#f1f5f9';
+                        exCtx.fillRect(sideX, sideY, tableW, rowH);
+                        exCtx.strokeStyle = '#cbd5e1';
+                        exCtx.lineWidth = 1;
+                        exCtx.strokeRect(sideX, sideY, tableW, rowH);
+
+                        exCtx.fillStyle = '#334155';
+                        exCtx.font = 'bold 15px sans-serif';
+                        exCtx.fillText('分裂段階', sideX + 20, sideY + rowH / 2);
+                        
+                        if (detailMode === 'both') {
+                            exCtx.fillText('個数', sideX + 240, sideY + rowH / 2);
+                            exCtx.fillText('割合 (%)', sideX + 350, sideY + rowH / 2);
+                        } else if (detailMode === 'count') {
+                            exCtx.fillText('個数', sideX + 320, sideY + rowH / 2);
+                        } else {
+                            exCtx.fillText('割合 (%)', sideX + 320, sideY + rowH / 2);
+                        }
+
+                        sideY += rowH;
+
+                        // Table Rows
+                        stages.forEach((sKey) => {
+                            const conf = stageConfig[sKey];
+                            const cnt = counts.filter(c => c.stage === sKey).length;
+                            const pct = totalCount > 0 ? ((cnt / totalCount) * 100).toFixed(1) : '0.0';
+
+                            exCtx.fillStyle = '#ffffff';
+                            exCtx.fillRect(sideX, sideY, tableW, rowH);
+                            exCtx.strokeRect(sideX, sideY, tableW, rowH);
+
+                            drawCellMarker(exCtx, sideX + 30, sideY + rowH / 2, sKey, 8, null, 1.0);
+
+                            exCtx.fillStyle = '#1e293b';
+                            exCtx.font = '15px sans-serif';
+                            exCtx.fillText(`${conf.label} (${conf.shape})`, sideX + 55, sideY + rowH / 2);
+
+                            exCtx.font = 'bold 15px monospace';
+                            if (detailMode === 'both') {
+                                exCtx.fillText(`${cnt} 個`, sideX + 240, sideY + rowH / 2);
+                                exCtx.fillText(`${pct} %`, sideX + 350, sideY + rowH / 2);
+                            } else if (detailMode === 'count') {
+                                exCtx.fillText(`${cnt} 個`, sideX + 320, sideY + rowH / 2);
+                            } else {
+                                exCtx.fillText(`${pct} %`, sideX + 320, sideY + rowH / 2);
+                            }
+
+                            sideY += rowH;
+                        });
+
+                        // Total Row
+                        exCtx.fillStyle = '#e2e8f0';
+                        exCtx.fillRect(sideX, sideY, tableW, rowH);
+                        exCtx.strokeRect(sideX, sideY, tableW, rowH);
+                        exCtx.fillStyle = '#0f172a';
+                        exCtx.font = 'bold 16px sans-serif';
+                        exCtx.fillText('合計 (Total)', sideX + 20, sideY + rowH / 2);
+                        exCtx.font = 'bold 16px monospace';
+                        exCtx.fillText(`${totalCount} 個`, sideX + (detailMode === 'both' ? 240 : 320), sideY + rowH / 2);
+
+                        sideY += rowH + 40;
+
+                        if (attachChart && stageChart) {
+                            exCtx.fillStyle = '#0f172a';
+                            exCtx.font = 'bold 18px sans-serif';
+                            exCtx.fillText('細胞周期的割合グラフ', sideX, sideY);
+                            sideY += 15;
+
+                            const chartImg = new Image();
+                            chartImg.onload = function () {
+                                const chartSize = 340;
+                                exCtx.drawImage(chartImg, sideX + (tableW - chartSize) / 2, sideY, chartSize, chartSize);
+                                downloadCanvasAsImage(exportCanvas);
+                            };
+                            chartImg.src = stageChart.toBase64Image();
+                            return;
+                        }
+                    }
+
+                    downloadCanvasAsImage(exportCanvas);
+                } catch (err) {
+                    console.error(err);
+                    alert("合成画像の作成に失敗しました。");
+                    showLoading(false);
+                }
+            }, 100);
+        }
+
+        let lastExportDataUrl = '';
+        let lastExportBlob = null;
+
+        function getFormattedDateFileName() {
+            const now = new Date();
+            const year = now.getFullYear();
+            const month = String(now.getMonth() + 1).padStart(2, '0');
+            const day = String(now.getDate()).padStart(2, '0');
+            return `${year}${month}${day}_レポート.png`;
+        }
+
+        function downloadCanvasAsImage(exportCanvas) {
+            const dataUrl = exportCanvas.toDataURL('image/png');
+            const fileName = getFormattedDateFileName();
+            lastExportDataUrl = dataUrl;
+
+            exportCanvas.toBlob(async (blob) => {
+                closeExportModal();
+                showLoading(false);
+                lastExportBlob = blob;
+
+                // Show export result preview modal with optimized mobile button layout
+                openExportResultModal(dataUrl, fileName);
+
+                // Attempt standard programmatic download trigger (desktop support)
+                try {
+                    const link = document.createElement('a');
+                    link.download = fileName;
+                    link.href = dataUrl;
+                    document.body.appendChild(link);
+                    link.click();
+                    document.body.removeChild(link);
+                } catch (e) {
+                    console.error("Direct download link trigger failed:", e);
+                }
+            }, 'image/png');
+        }
+
+        function openExportResultModal(dataUrl, fileName) {
+            const imgEle = document.getElementById('exportResultImg');
+            const dlBtn = document.getElementById('exportResultDownloadBtn');
+            const shareBtn = document.getElementById('shareBtn');
+            
+            if (imgEle) imgEle.src = dataUrl;
+            if (dlBtn) {
+                dlBtn.href = dataUrl;
+                dlBtn.download = fileName || getFormattedDateFileName();
+            }
+
+            // Enable Web Share button if native sharing is supported
+            if (shareBtn) {
+                if (navigator.canShare && lastExportBlob && navigator.canShare({ files: [new File([lastExportBlob], fileName || getFormattedDateFileName(), { type: 'image/png' })] })) {
+                    shareBtn.classList.remove('hidden');
+                } else {
+                    shareBtn.classList.add('hidden');
+                }
+            }
+
+            const modal = document.getElementById('exportResultModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        async function shareResultImage() {
+            if (!lastExportBlob) return;
+            const fileName = getFormattedDateFileName();
+            const file = new File([lastExportBlob], fileName, { type: 'image/png' });
+            try {
+                await navigator.share({
+                    files: [file],
+                    title: '細胞カウント解析レポート',
+                    text: '体細胞分裂観察のデータ集計結果画像'
+                });
+            } catch (err) {
+                console.log("Share cancelled or failed", err);
+            }
+        }
+
+        function closeExportResultModal() {
+            const modal = document.getElementById('exportResultModal');
+            if (modal) modal.classList.add('hidden');
+        }
+
+        function openResultInNewTab() {
+            if (!lastExportDataUrl) return;
+
+            const win = window.open('', '_blank');
+            if (!win) {
+                alert('ポップアップがブロックされました。ブラウザのポップアップ許可を設定してください。');
+                return;
+            }
+
+            win.document.write(`
+                <!DOCTYPE html>
+                <html lang="ja">
+                <head>
+                    <meta charset="UTF-8">
+                    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+                    <title>細胞カウント解析結果 - 画像保存</title>
+                    <style>
+                        * { box-sizing: border-box; }
+                        body {
+                            margin: 0;
+                            padding: 16px;
+                            background-color: #0f172a;
+                            color: #ffffff;
+                            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+                            display: flex;
+                            flex-direction: column;
+                            align-items: center;
+                            min-height: 100vh;
+                        }
+                        .notice {
+                            background: #1e293b;
+                            border: 1px solid #334155;
+                            border-left: 4px solid #6366f1;
+                            border-radius: 12px;
+                            padding: 14px 18px;
+                            margin-bottom: 20px;
+                            max-width: 640px;
+                            width: 100%;
+                            box-shadow: 0 10px 25px -5px rgba(0, 0, 0, 0.4);
+                        }
+                        .notice h2 {
+                            font-size: 16px;
+                            margin: 0 0 6px 0;
+                            color: #818cf8;
+                            display: flex;
+                            align-items: center;
+                            gap: 8px;
+                        }
+                        .notice p {
+                            font-size: 13.5px;
+                            margin: 0;
+                            color: #e2e8f0;
+                            line-height: 1.6;
+                        }
+                        .img-container {
+                            flex: 1;
+                            display: flex;
+                            justify-content: center;
+                            align-items: flex-start;
+                            width: 100%;
+                            max-width: 960px;
+                        }
+                        .result-img {
+                            max-width: 100%;
+                            height: auto;
+                            border-radius: 12px;
+                            box-shadow: 0 20px 30px -10px rgba(0, 0, 0, 0.6);
+                            display: block;
+                            background-color: #ffffff;
+                            -webkit-touch-callout: default !important;
+                            user-select: auto !important;
+                            -webkit-user-select: auto !important;
+                        }
+                    </style>
+                </head>
+                <body>
+                    <div class="notice">
+                        <h2>📱 画像の保存方法</h2>
+                        <p>下の画像を<strong>長押し</strong>（または右クリック）して、<strong>「写真に保存」</strong>・<strong>「画像を保存」</strong>などを選択して保存してください。</p>
+                    </div>
+                    <div class="img-container">
+                        <img id="resultImage" class="result-img" alt="細胞カウント解析結果">
+                    </div>
+                </body>
+                </html>
+            `);
+            win.document.close();
+
+            // DOM要素に対して直接Data URLを割り当てることで、文字列パースエラーやオリジン遮断を回避
+            const imgEl = win.document.getElementById('resultImage');
+            if (imgEl) {
+                imgEl.src = lastExportDataUrl;
+            }
+        }
+
+        function showLoading(show, text = "処理中...") {
+            const overlay = document.getElementById('loadingOverlay');
+            document.getElementById('loadingText').innerText = text;
+            if (show) {
+                overlay.classList.remove('hidden');
+            } else {
+                overlay.classList.add('hidden');
+            }
+        }
     </script>
 </body>
 </html>
