@@ -1,1 +1,451 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>細胞カウントアプリ</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <script src="https://cdn.jsdelivr.net/npm/chart.js"></script>
+    <!-- Chart.js Datalabels Plugin for displaying values on the chart -->
+    <script src="https://cdn.jsdelivr.net/npm/chartjs-plugin-datalabels@2.2.0"></script>
+    <!-- Cropper.js for image cropping -->
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.css" rel="stylesheet">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/cropperjs/1.5.12/cropper.min.js"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Inter', sans-serif;
+        }
+        canvas#imageCanvas {
+            cursor: crosshair;
+        }
+        .stage-btn.active {
+            transform: scale(1.05);
+            box-shadow: 0 0 0 3px rgba(59, 130, 246, 0.5);
+        }
+        /* Styles for Cropper.js modal */
+        #cropModal {
+            display: none; /* Hidden by default */
+            position: fixed;
+            z-index: 1000;
+            left: 0;
+            top: 0;
+            width: 100%;
+            height: 100%;
+            overflow: auto;
+            background-color: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+        }
+        #cropModalContent {
+            background-color: #fefefe;
+            padding: 20px;
+            border-radius: 10px;
+            max-width: 90vw;
+            max-height: 90vh;
+            display: flex;
+            flex-direction: column;
+        }
+        #imageToCropContainer {
+            max-height: 70vh;
+        }
+        #imageToCrop {
+            max-width: 100%;
+            max-height: 100%;
+        }
+    </style>
+</head>
+<body class="bg-gray-100 text-gray-800 flex flex-col items-center justify-center min-h-screen p-4">
 
+    <div class="w-full max-w-6xl mx-auto bg-white rounded-xl shadow-lg p-6">
+        <header class="text-center mb-6">
+            <h1 class="text-3xl font-bold text-gray-700">🔬 細胞カウントアプリ</h1>
+            <p class="text-gray-500 mt-2">分裂期の段階を選んで、細胞の核をクリックしましょう。</p>
+        </header>
+
+        <!-- Controls -->
+        <div class="flex flex-col md:flex-row items-center justify-between mb-4 gap-4">
+            <div class="flex items-center flex-wrap justify-center gap-3">
+                <label for="imageLoader" class="cursor-pointer bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">画像を選択</label>
+                <input type="file" id="imageLoader" name="imageLoader" class="hidden" accept="image/*"/>
+                <button id="undoButton" class="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">一手戻す</button>
+                <button id="downloadButton" class="bg-green-500 hover:bg-green-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">画像をダウンロード</button>
+                <button id="resetButton" class="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-lg transition-colors duration-300">リセット</button>
+            </div>
+             <div class="text-center md:text-right">
+                <h2 class="text-xl font-semibold">合計細胞数: <span id="totalCellCount" class="text-blue-600">0</span></h2>
+            </div>
+        </div>
+        
+        <!-- Stage Selection -->
+        <div class="mb-4 p-4 bg-gray-50 rounded-lg">
+            <h3 class="text-lg font-semibold text-center mb-3">分裂期の段階を選択:</h3>
+            <div id="stageSelector" class="flex flex-wrap justify-center gap-3">
+                <!-- Buttons are styled dynamically in JS -->
+                <button class="stage-btn active" data-stage="interphase">間期 (○)</button>
+                <button class="stage-btn" data-stage="prophase">前期 (□)</button>
+                <button class="stage-btn" data-stage="metaphase">中期 (△)</button>
+                <button class="stage-btn" data-stage="anaphase">後期 (◇)</button>
+                <button class="stage-btn" data-stage="telophase">終期 (☆)</button>
+            </div>
+        </div>
+
+        <div class="grid grid-cols-1 lg:grid-cols-3 gap-6">
+            <!-- Canvas Container -->
+            <div class="lg:col-span-2 bg-gray-200 rounded-lg overflow-hidden shadow-inner flex justify-center items-center">
+                 <canvas id="imageCanvas" class="w-full h-auto"></canvas>
+            </div>
+
+            <!-- Data Display Column -->
+            <div class="flex flex-col gap-6">
+                <!-- Counts Display -->
+                <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                    <h3 class="text-xl font-semibold mb-4 text-center">各段階の細胞数</h3>
+                    <div class="space-y-3">
+                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #BFDBFE;"><span class="font-medium">間期:</span><span id="interphaseCount" class="font-bold text-lg">0</span></div>
+                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #A7F3D0;"><span class="font-medium">前期:</span><span id="prophaseCount" class="font-bold text-lg">0</span></div>
+                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #FDE68A;"><span class="font-medium">中期:</span><span id="metaphaseCount" class="font-bold text-lg">0</span></div>
+                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #FECACA;"><span class="font-medium">後期:</span><span id="anaphaseCount" class="font-bold text-lg">0</span></div>
+                        <div class="flex justify-between items-center p-3 rounded-lg" style="background-color: #DDD6FE;"><span class="font-medium">終期:</span><span id="telophaseCount" class="font-bold text-lg">0</span></div>
+                        <hr class="my-2 border-t-2 border-gray-300">
+                        <div class="flex justify-between items-center p-3 rounded-lg bg-gray-300"><span class="font-bold">合計:</span><span id="summaryTotalCount" class="font-bold text-lg">0</span></div>
+                    </div>
+                </div>
+                <!-- Pie Chart -->
+                <div class="bg-gray-50 p-4 rounded-lg shadow-inner">
+                    <h3 class="text-xl font-semibold mb-4 text-center">細胞数の割合 (%)</h3>
+                    <canvas id="pieChart"></canvas>
+                </div>
+            </div>
+        </div>
+    </div>
+
+    <!-- Cropping Modal -->
+    <div id="cropModal" class="flex">
+        <div id="cropModalContent">
+            <h2 class="text-2xl font-bold text-center mb-4">画像をトリミング</h2>
+            <div id="imageToCropContainer">
+                <img id="imageToCrop" src="">
+            </div>
+            <div class="flex justify-center mt-4 gap-4">
+                <button id="cropButton" class="bg-blue-500 hover:bg-blue-600 text-white font-bold py-2 px-6 rounded-lg">決定</button>
+                <button id="cancelCropButton" class="bg-gray-500 hover:bg-gray-600 text-white font-bold py-2 px-6 rounded-lg">キャンセル</button>
+            </div>
+        </div>
+    </div>
+
+
+    <script>
+        // DOM Elements
+        const imageLoader = document.getElementById('imageLoader');
+        const resetButton = document.getElementById('resetButton');
+        const downloadButton = document.getElementById('downloadButton');
+        const undoButton = document.getElementById('undoButton');
+        const imageCanvas = document.getElementById('imageCanvas');
+        const ctx = imageCanvas.getContext('2d');
+        const stageSelector = document.getElementById('stageSelector');
+        const chartCanvas = document.getElementById('pieChart');
+        const cropModal = document.getElementById('cropModal');
+        const imageToCrop = document.getElementById('imageToCrop');
+        const cropButton = document.getElementById('cropButton');
+        const cancelCropButton = document.getElementById('cancelCropButton');
+
+        // State
+        let image = new Image();
+        let counts = []; // Store coordinates and stage: {x, y, stage}
+        let currentStage = 'interphase';
+        let pieChart;
+        let cropper;
+
+        const stageConfig = {
+            interphase: { color: 'rgba(59, 130, 246, 0.9)', label: '間期', bgColor: '#BFDBFE', baseColor: '#3B82F6', shape: 'circle' },
+            prophase:   { color: 'rgba(16, 185, 129, 0.9)', label: '前期', bgColor: '#A7F3D0', baseColor: '#10B981', shape: 'square' },
+            metaphase:  { color: 'rgba(245, 158, 11, 0.9)', label: '中期', bgColor: '#FDE68A', baseColor: '#F59E0B', shape: 'triangle' },
+            anaphase:   { color: 'rgba(239, 68, 68, 0.9)', label: '後期', bgColor: '#FECACA', baseColor: '#EF4444', shape: 'diamond' },
+            telophase:  { color: 'rgba(139, 92, 246, 0.9)', label: '終期', bgColor: '#DDD6FE', baseColor: '#8B5CF6', shape: 'star' }
+        };
+
+        // --- Marker Drawing Functions ---
+        function drawMarker(ctx, point) {
+            const config = stageConfig[point.stage];
+            const size = 20; // radius or half-width
+
+            ctx.save();
+            ctx.beginPath();
+            ctx.fillStyle = config.color;
+            ctx.strokeStyle = '#000000';
+            ctx.lineWidth = 3;
+            ctx.translate(point.x, point.y);
+
+            switch (config.shape) {
+                case 'square':
+                    ctx.rect(-size, -size, size * 2, size * 2);
+                    break;
+                case 'triangle':
+                    ctx.moveTo(0, -size);
+                    ctx.lineTo(size, size);
+                    ctx.lineTo(-size, size);
+                    ctx.closePath();
+                    break;
+                case 'diamond':
+                    ctx.moveTo(0, -size);
+                    ctx.lineTo(size, 0);
+                    ctx.lineTo(0, size);
+                    ctx.lineTo(-size, 0);
+                    ctx.closePath();
+                    break;
+                case 'star':
+                    const spikes = 5;
+                    const outerRadius = size;
+                    const innerRadius = size / 2;
+                    let rot = Math.PI / 2 * 3;
+                    let x = 0;
+                    let y = 0;
+                    let step = Math.PI / spikes;
+
+                    ctx.moveTo(0, -outerRadius);
+                    for (let i = 0; i < spikes; i++) {
+                        x = Math.cos(rot) * outerRadius;
+                        y = Math.sin(rot) * outerRadius;
+                        ctx.lineTo(x, y);
+                        rot += step;
+
+                        x = Math.cos(rot) * innerRadius;
+                        y = Math.sin(rot) * innerRadius;
+                        ctx.lineTo(x, y);
+                        rot += step;
+                    }
+                    ctx.lineTo(0, -outerRadius);
+                    ctx.closePath();
+                    break;
+                case 'circle':
+                default:
+                    ctx.arc(0, 0, size, 0, 2 * Math.PI, false);
+                    break;
+            }
+            ctx.fill();
+            ctx.stroke();
+            ctx.restore();
+        }
+
+        // --- Core Functions ---
+
+        function updateDataDisplays() {
+            const stageCounts = { interphase: 0, prophase: 0, metaphase: 0, anaphase: 0, telophase: 0 };
+            counts.forEach(point => { stageCounts[point.stage]++; });
+
+            const totalCount = counts.length;
+            document.getElementById('totalCellCount').textContent = totalCount;
+            document.getElementById('summaryTotalCount').textContent = totalCount;
+
+            const percentages = [];
+            for (const stage in stageCounts) {
+                document.getElementById(`${stage}Count`).textContent = stageCounts[stage];
+                percentages.push(stageCounts[stage]); // Use raw counts for pie chart data
+            }
+            
+            if (pieChart) {
+                pieChart.data.datasets[0].data = percentages;
+                pieChart.update();
+            }
+            undoButton.disabled = totalCount === 0;
+        }
+
+        function redraw() {
+            if (!image.src) return;
+            imageCanvas.width = image.naturalWidth;
+            imageCanvas.height = image.naturalHeight;
+            ctx.clearRect(0, 0, imageCanvas.width, imageCanvas.height);
+            ctx.drawImage(image, 0, 0, imageCanvas.width, imageCanvas.height);
+
+            counts.forEach((point, index) => {
+                drawMarker(ctx, point);
+                
+                // Draw number inside marker
+                ctx.font = 'bold 28px Arial';
+                ctx.fillStyle = 'white';
+                ctx.textAlign = 'center';
+                ctx.textBaseline = 'middle';
+                ctx.fillText(index + 1, point.x, point.y);
+            });
+            updateDataDisplays();
+        }
+        
+        function handleImage(e) {
+            const files = e.target.files;
+            if (files && files.length > 0) {
+                const reader = new FileReader();
+                reader.onload = (event) => {
+                    imageToCrop.src = event.target.result;
+                    cropModal.style.display = 'flex';
+                    if(cropper) cropper.destroy();
+                    cropper = new Cropper(imageToCrop, { aspectRatio: 0, viewMode: 1 });
+                };
+                reader.readAsDataURL(files[0]);
+            }
+            e.target.value = '';
+        }
+
+        function resetCounts() {
+            counts = [];
+            redraw();
+        }
+
+        function handleUndo() {
+            if (counts.length > 0) {
+                counts.pop();
+                redraw();
+            }
+        }
+        
+        function handleCanvasClick(e) {
+            if (!image.src) return;
+            const rect = imageCanvas.getBoundingClientRect();
+            const scaleX = imageCanvas.width / rect.width;
+            const scaleY = imageCanvas.height / rect.height;
+            const x = (e.clientX - rect.left) * scaleX;
+            const y = (e.clientY - rect.top) * scaleY;
+            counts.push({ x, y, stage: currentStage });
+            redraw();
+        }
+        
+        function handleStageSelect(e) {
+            if (e.target.tagName !== 'BUTTON') return;
+            currentStage = e.target.dataset.stage;
+            document.querySelectorAll('.stage-btn').forEach(btn => btn.classList.remove('active'));
+            e.target.classList.add('active');
+        }
+
+        function downloadImage() {
+            if (!image.src) return;
+
+            const dataWidth = 350;
+            const padding = 25;
+            const lineHeight = 40;
+            const headerHeight = 50;
+            const dataHeight = headerHeight + (Object.keys(stageConfig).length + 2) * lineHeight + 2 * padding;
+
+            const newCanvas = document.createElement('canvas');
+            newCanvas.width = imageCanvas.width + dataWidth + padding;
+            newCanvas.height = Math.max(imageCanvas.height, dataHeight);
+            const newCtx = newCanvas.getContext('2d');
+
+            newCtx.fillStyle = 'white';
+            newCtx.fillRect(0, 0, newCanvas.width, newCanvas.height);
+            newCtx.drawImage(imageCanvas, 0, 0);
+
+            let currentY = padding;
+            const tableX = imageCanvas.width + padding;
+            newCtx.font = 'bold 28px Arial';
+            newCtx.fillStyle = 'black';
+            newCtx.textAlign = 'left';
+            newCtx.textBaseline = 'top';
+            newCtx.fillText('測定結果', tableX, currentY);
+            currentY += headerHeight;
+
+            newCtx.font = '22px Arial';
+            const stageCounts = { interphase: 0, prophase: 0, metaphase: 0, anaphase: 0, telophase: 0 };
+            counts.forEach(point => { stageCounts[point.stage]++; });
+
+            for (const stage in stageConfig) {
+                const config = stageConfig[stage];
+                newCtx.fillStyle = config.bgColor;
+                newCtx.fillRect(tableX, currentY, dataWidth - padding, lineHeight);
+                newCtx.fillStyle = 'black';
+                newCtx.fillText(`${config.label}:`, tableX + 10, currentY + 8);
+                newCtx.textAlign = 'right';
+                newCtx.fillText(stageCounts[stage], tableX + dataWidth - padding - 10, currentY + 8);
+                newCtx.textAlign = 'left';
+                currentY += lineHeight;
+            }
+            
+            newCtx.beginPath();
+            newCtx.moveTo(tableX, currentY);
+            newCtx.lineTo(tableX + dataWidth - padding, currentY);
+            newCtx.stroke();
+            currentY += 5;
+
+            newCtx.font = 'bold 22px Arial';
+            newCtx.fillStyle = '#e5e7eb';
+            newCtx.fillRect(tableX, currentY, dataWidth - padding, lineHeight);
+            newCtx.fillStyle = 'black';
+            newCtx.fillText('合計:', tableX + 10, currentY + 8);
+            newCtx.textAlign = 'right';
+            newCtx.fillText(counts.length, tableX + dataWidth - padding - 10, currentY + 8);
+            newCtx.textAlign = 'left';
+
+            const link = document.createElement('a');
+            link.download = 'cell-count-result.png';
+            link.href = newCanvas.toDataURL('image/png');
+            link.click();
+        }
+
+        function initChart() {
+            Chart.register(ChartDataLabels);
+            pieChart = new Chart(chartCanvas.getContext('2d'), {
+                type: 'pie',
+                data: {
+                    labels: Object.values(stageConfig).map(s => s.label),
+                    datasets: [{
+                        data: [0, 0, 0, 0, 0],
+                        backgroundColor: Object.values(stageConfig).map(s => s.baseColor),
+                    }]
+                },
+                options: {
+                    responsive: true,
+                    plugins: { 
+                        legend: { display: true, position: 'bottom' },
+                        tooltip: { enabled: false },
+                        datalabels: {
+                            formatter: (value, ctx) => {
+                                let sum = 0;
+                                let dataArr = ctx.chart.data.datasets[0].data;
+                                dataArr.map(data => { sum += data; });
+                                if (sum === 0) return '';
+                                let percentage = (value * 100 / sum).toFixed(1) + '%';
+                                return percentage;
+                            },
+                            color: '#fff',
+                            font: { weight: 'bold' }
+                        }
+                    }
+                }
+            });
+        }
+        
+        // --- Event Listeners ---
+        imageLoader.addEventListener('change', handleImage);
+        resetButton.addEventListener('click', resetCounts);
+        undoButton.addEventListener('click', handleUndo);
+        downloadButton.addEventListener('click', downloadImage);
+        imageCanvas.addEventListener('click', handleCanvasClick);
+        stageSelector.addEventListener('click', handleStageSelect);
+        window.addEventListener('resize', redraw);
+
+        cropButton.addEventListener('click', () => {
+            image.src = cropper.getCroppedCanvas().toDataURL();
+            image.onload = () => resetCounts();
+            cropModal.style.display = 'none';
+        });
+
+        cancelCropButton.addEventListener('click', () => {
+            cropModal.style.display = 'none';
+        });
+
+        // --- Initial Load ---
+        document.querySelectorAll('.stage-btn').forEach(btn => {
+            const stage = btn.dataset.stage;
+            btn.style.backgroundColor = stageConfig[stage].baseColor;
+            btn.classList.add('text-white', 'font-bold', 'py-3', 'px-5', 'text-lg', 'rounded-lg', 'transition-all', 'duration-200');
+        });
+
+        image.onload = redraw;
+        image.src = 'https://storage.googleapis.com/gemini-prod/images/483e9281-bab5-4d92-a8b6-81f008851380';
+        
+        window.onload = () => {
+            initChart();
+            updateDataDisplays();
+        };
+    </script>
+</body>
+</html>
